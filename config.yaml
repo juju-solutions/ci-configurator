@@ -1,0 +1,26 @@
+options:
+    install-source:
+        type: string
+        default: 'git://github.com/openstack-infra/jenkins-job-builder.git'
+        description: |
+            Git repository to install project from.  Alternatively, you may run
+            the 'make sourcedeps' target of the Makefile to package required
+            assets into the charm prior to deploying, for environments where
+            network access is restricted.   Any bundled package will override
+            a any git repository set in config.
+    jobs-config-repo:
+        type: string
+        description: |
+            Bzr repository url containing collection of yaml files containing
+            jenkins-job-builder configs. This may also be packaged locally
+            prior to deploying by running 'make jobsconfig' target of the
+            Makefile topull from a specified repository.  Again, any bundled
+            assets will override any setting set here.  The contents of this
+            repository (oranything packaged with the charm) will end up
+            installed in/etc/jenkins-job-builder/job-configs/ on the service
+            unit.
+    jobs-config-revision:
+        type: string
+        default: 'trunk'
+        description: If bzr repo specified, which revision to use.  Defaults to
+            trunk, and is updated on during every config-changed hook.

@@ -1,0 +1,8 @@
+name: jenkins-job-builder
+summary: Jenkins Job Builder
+maintainer: "Adam Gandelman <adamg@ubuntu.com>"
+description: jenkins-job-builder
+provides:
+  jenkins-job-builder:
+    interface: jenkins-job-builder
+
