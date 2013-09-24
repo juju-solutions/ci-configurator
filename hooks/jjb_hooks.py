@@ -44,13 +44,17 @@ def install():
 def config_changed():
     conf_repo = config('jobs-config-repo')
     bundled_configs = os.path.join(charm_dir(), jjb.LOCAL_JOBS_CONFIG)
-    print 'LOOKIN FOR %s.' % bundled_configs
     if os.path.exists(bundled_configs) and os.path.isdir(bundled_configs):
         jjb.update_configs_from_charm(bundled_configs)
     elif conf_repo and (conf_repo.startswith('lp:')
                         or conf_repo.startswith('bzr')):
         jjb.update_configs_from_repo(conf_repo, config('job-config-revision'))
     jjb.update_jenkins()
+
+
+@hooks.hook()
+def jenkins_job_builder_relation_changed():
+    config_changed()
 
 
 def main():

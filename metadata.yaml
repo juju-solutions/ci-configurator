@@ -2,7 +2,8 @@ name: jenkins-job-builder
 summary: Jenkins Job Builder
 maintainer: "Adam Gandelman <adamg@ubuntu.com>"
 description: jenkins-job-builder
-provides:
+subordinate: true
+requires:
   jenkins-job-builder:
-    interface: jenkins-job-builder
-
+    interface: jenkins-extension
+    scope: container

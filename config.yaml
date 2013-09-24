@@ -21,6 +21,20 @@ options:
             unit.
     jobs-config-revision:
         type: string
-        default: 'trunk'
-        description: If bzr repo specified, which revision to use.  Defaults to
+        default: "trunk"
+        description: |
+            If bzr repo specified, which revision to use.  Defaults to
             trunk, and is updated on during every config-changed hook.
+    schedule-updates:
+        type: boolean
+        default: 'false'
+        description: |
+            If configured to run from trunk of a remote repository, you may
+            optionally have the charm install a cronjob that will periodically
+            pull trunk and update Jenkins.
+    update-frequency:
+        type: string
+        default: ''
+        description: |
+            If schedule-updates is True, update-frequency sets the schedule on
+            which the cronjob updates the branch and pushes changes to Jenkins.
