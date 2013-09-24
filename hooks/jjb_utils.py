@@ -80,13 +80,14 @@ def update_configs_from_repo(repo, revision=None):
         shutil.rmtree(JOBS_CONFIG_DIR)
 
     if not os.path.exists(JOBS_CONFIG_DIR):
-        cmd = ['bzr', 'branch', repo]
+        cmd = ['bzr', 'branch', repo, JOBS_CONFIG_DIR]
         if revision and revision != 'trunk':
             cmd += ['-r', revision]
         subprocess.check_call(cmd)
         return
 
     cmds = []
+    cmds.append(['bzr', 'revert'])
     if revision == 'trunk':
         log('Ensuring %s is up to date.' % JOBS_CONFIG_DIR)
         cmds.append(['bzr', 'revert'])
