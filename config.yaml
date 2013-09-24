@@ -27,7 +27,7 @@ options:
             trunk, and is updated on during every config-changed hook.
     schedule-updates:
         type: boolean
-        default: 'false'
+        default: false
         description: |
             If configured to run from trunk of a remote repository, you may
             optionally have the charm install a cronjob that will periodically
