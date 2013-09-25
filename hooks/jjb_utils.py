@@ -178,5 +178,11 @@ def update_jenkins():
     # inform hook where to find the context json dump
     os.environ['JJB_CHARM_CONTEXT'] = CHARM_CONTEXT_DUMP
     os.environ['JJB_JOBS_CONFIG_DIR'] = JOBS_CONFIG_DIR
-    log('Calling jenkins-job-builder update hook: %s.' % hook)
+    log('Calling jenkins-job-builder repo update hook: %s.' % hook)
     subprocess.check_call(hook)
+
+    # call jenkins-jobs to actually update jenkins
+    # TODO: Call 'jenkins-job test' to validate configs before updating?
+    log('Updating jobs in jenkins.')
+    cmd = ['jenkins-jobs', 'update', JOBS_CONFIG_DIR]
+    subprocess.check_call(cmd)

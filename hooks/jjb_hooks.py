@@ -57,6 +57,11 @@ def config_changed():
 
 
 @hooks.hook()
+def upgrade_charm():
+    config_changed()
+
+
+@hooks.hook()
 def jenkins_job_builder_relation_changed():
     config_changed()
 
