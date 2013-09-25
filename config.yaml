@@ -38,3 +38,8 @@ options:
         description: |
             If schedule-updates is True, update-frequency sets the schedule on
             which the cronjob updates the branch and pushes changes to Jenkins.
+    required-packages:
+        type: string
+        description: |
+            Space-separated list of Ubuntu packages required to be installed in
+            order to run required jobs defined in repository.

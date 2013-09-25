@@ -42,6 +42,10 @@ def install():
 
 @hooks.hook()
 def config_changed():
+    dep_packages = config('required-packages').split(' ')
+    if dep_packages:
+        log('Installing packages as specified in config: %s.' % dep_packages)
+        apt_install(dep_packages)
     conf_repo = config('jobs-config-repo')
     bundled_configs = os.path.join(charm_dir(), jjb.LOCAL_JOBS_CONFIG)
     if os.path.exists(bundled_configs) and os.path.isdir(bundled_configs):
