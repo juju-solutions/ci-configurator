@@ -184,5 +184,5 @@ def update_jenkins():
     # call jenkins-jobs to actually update jenkins
     # TODO: Call 'jenkins-job test' to validate configs before updating?
     log('Updating jobs in jenkins.')
-    cmd = ['jenkins-jobs', 'update', JOBS_CONFIG_DIR]
+    cmd = ['jenkins-jobs', '--flush-cache', 'update', JOBS_CONFIG_DIR]
     subprocess.check_call(cmd)
