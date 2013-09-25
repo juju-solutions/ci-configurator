@@ -48,6 +48,8 @@ def install_from_file(tarball):
     cmd = ['pip', 'install', '--no-index',
            '--find-links=file://%s' % deps, '-r', 'tools/pip-requires']
     subprocess.check_call(cmd)
+    cmd = ['python', './setup.py', 'install']
+    subprocess.check_call(cmd)
     log('*** Installed from local tarball.')
 
 
