@@ -42,8 +42,9 @@ def install():
 
 @hooks.hook()
 def config_changed():
-    dep_packages = config('required-packages').split(' ')
+    dep_packages = config('required-packages')
     if dep_packages:
+        dep_packages = dep_packages.split(' ')
         log('Installing packages as specified in config: %s.' % dep_packages)
         apt_install(dep_packages)
     conf_repo = config('jobs-config-repo')
