@@ -4,7 +4,7 @@ import tempfile
 
 import common
 
-from charmhelpers.core.hookenv import log, relation_ids, relation, WARNING
+from charmhelpers.core.hookenv import log, relation_ids, relation_get, WARNING
 
 GERRIT_INIT_SCRIPT = '/etc/init.d/gerrit'
 GERRIT_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'gerrit')
@@ -102,15 +102,19 @@ def update_permissions():
             "git init && git remote add repo %s && "
             "git fetch repo refs/meta/config:refs/remotes/origin/meta/config "
             "&& git checkout meta/config" % 
-            (relation('admin_email'), relation('admin_username'), git_permissions_dest)
+            (relation_get('admin_email'), relation_get('admin_username'), git_permissions_dest)
         )
         subprocess.check_call(cmd, shell=True)
 
         # copy files to temp dir, then commit and push
-        common.sync_dir(PERMISSIONS_DIR, tmppath)
+        common.sync_dir(PERMISSIONS_DIR+'/All-Projects', tmppath)
 
-        cmd = ("export HOME='srv/git' && git commit -a -m 'Initial permissions' && "
-            "git push repo meta/config:meta/config")
+        cmd = ("export HOME='/srv/git' && git config --global user.name %s && "
+            "git config --global user.email %s && "
+            "git commit -a -m 'Initial permissions' && "
+            "git push repo meta/config:meta/config" % 
+            (relation_get('admin_email'), relation_get('admin_username'))
+        )
         subprocess.check_call(cmd, shell=True)
     else:
         log('Error creating permissions temporary directory', level=ERROR)
