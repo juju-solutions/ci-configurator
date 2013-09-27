@@ -13,5 +13,5 @@ requires:
     interface: gerrit-configurator
     scope: container
   zuul-configurator:
-    interface: zuul-layout
+    interface: zuul-configurator
     scope: container

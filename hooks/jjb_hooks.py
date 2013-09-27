@@ -59,7 +59,10 @@ def config_changed():
                 return False
 
         jjb.update_jenkins()
-        zuul.update_zuul()
+
+        # check if we have zuul relationship
+        if relation_ids('zuul-configurator'):
+            zuul.update_zuul()
     else:
         log('Not updating resources until we have a config-repo configured.')
 
