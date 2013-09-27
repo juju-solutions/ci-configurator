@@ -1,14 +1,16 @@
 import os
 import subprocess
+import tempfile
 
 import common
 
-from charmhelpers.core.hookenv import log, relation_ids, WARNING
+from charmhelpers.core.hookenv import log, relation_ids, relation, WARNING
 
 GERRIT_INIT_SCRIPT = '/etc/init.d/gerrit'
 GERRIT_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'gerrit')
 THEME_DIR = os.path.join(GERRIT_CONFIG_DIR, 'theme')
 HOOKS_DIR = os.path.join(GERRIT_CONFIG_DIR, 'hooks')
+PERMISSIONS_DIR = os.path.join(GERRIT_CONFIG_DIR, 'permissions')
 
 
 # start gerrit application
@@ -77,8 +79,44 @@ def update_hooks():
 
 
 def update_permissions():
-    # TODO
-    return False
+    # TODO (yolanda.robla)
+    # These installation destinations needs to come from principle via relation
+    git_permissions_dest = '/srv/git/All-Projects.git'
+
+    if not os.path.isdir(PERMISSIONS_DIR):
+        log('Gerrit permissions directory not found @ %s, skipping permissions refresh.' %
+            PERMISSIONS_DIR, level=WARNING)
+        return False
+
+    if not os.path.isdir(git_permissions_dest):
+        log('Target permissions directory @ %s, is still not ready, please retry.' %
+            git_permissions_dest, level=WARNING)
+
+    # update git repo with permissions
+    log('Installing gerrit permissions from %s.' % PERMISSIONS_DIR)
+    tmppath = tempfile.mkdtemp('', 'gerritperms')
+    if tmppath:
+        os.chdir(tmppath)
+        cmd = ("export HOME='/srv/git' && git config --global user.email %s && "
+            "git config --global user.name %s && "
+            "git init && git remote add repo %s && "
+            "git fetch repo refs/meta/config:refs/remotes/origin/meta/config "
+            "&& git checkout meta/config" % 
+            (relation('admin_email'), relation('admin_username'), git_permissions_dest)
+        )
+        subprocess.check_call(cmd, shell=True)
+
+        # copy files to temp dir, then commit and push
+        common.sync_dir(PERMISSIONS_DIR, tmppath)
+
+        cmd = ("export HOME='srv/git' && git commit -a -m 'Initial permissions' && "
+            "git push repo meta/config:meta/config")
+        subprocess.check_call(cmd, shell=True)
+    else:
+        log('Error creating permissions temporary directory', level=ERROR)
+        return False
+
+    return True
 
 
 def update_gerrit():
