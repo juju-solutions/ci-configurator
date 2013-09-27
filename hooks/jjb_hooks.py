@@ -2,18 +2,22 @@
 
 import os
 import sys
-import jjb_utils as jjb
+
+import gerrit
+import jjb
+import zuul
+
+import common
 
 from charmhelpers.core.hookenv import (
     charm_dir,
     config,
     log,
+    relation_ids,
+    relation_set,
     Hooks,
     UnregisteredHookError,
-    ERROR,
 )
-
-from charmhelpers.fetch import apt_install
 
 
 hooks = Hooks()
@@ -21,40 +25,35 @@ hooks = Hooks()
 
 @hooks.hook()
 def install():
-    if not os.path.isdir(jjb.CONFIG_DIR):
-        os.mkdir(jjb.CONFIG_DIR)
-    apt_install(jjb.PACKAGES, fatal=True)
-    src = config('install-source')
-    tarball = os.path.join(charm_dir(), 'files', jjb.TARBALL)
-
-    if os.path.isfile(tarball):
-        log('Installing jenkins-job-builder from bundled file: %s.' % tarball)
-        jjb.install_from_file(tarball)
-    elif src.startswith('git://'):
-        log('Installing jenkins-job-builder from remote git: %s.' % src)
-        jjb.install_from_git(src)
-    else:
-        m = ('Must specify a git url as install source or bundled source with '
-             'the charm.')
-        log(m, ERROR)
-        raise Exception(m)
+    if not os.path.exists(common.CONFIG_DIR):
+        os.mkdir(common.CONFIG_DIR)
+    jjb.install()
 
 
 @hooks.hook()
 def config_changed():
-    dep_packages = config('required-packages')
-    if dep_packages:
-        dep_packages = dep_packages.split(' ')
-        log('Installing packages as specified in config: %s.' % dep_packages)
-        apt_install(dep_packages)
-    conf_repo = config('jobs-config-repo')
-    bundled_configs = os.path.join(charm_dir(), jjb.LOCAL_JOBS_CONFIG)
-    if os.path.exists(bundled_configs) and os.path.isdir(bundled_configs):
-        jjb.update_configs_from_charm(bundled_configs)
+    conf_repo = config('config-repo')
+    bundled_repo = os.path.join(charm_dir(), common.LOCAL_CONFIG_REPO)
+
+    have_repo = False
+    if os.path.exists(bundled_repo) and os.path.isdir(bundled_repo):
+        common.update_configs_from_charm(bundled_repo)
+        have_repo = True
     elif conf_repo and (conf_repo.startswith('lp:')
                         or conf_repo.startswith('bzr')):
-        jjb.update_configs_from_repo(conf_repo, config('job-config-revision'))
-    jjb.update_jenkins()
+        have_repo = True
+        common.update_configs_from_repo(
+            conf_repo, config('config-repo-revision'))
+
+    if have_repo:
+        gerrit.update_gerrit()
+        jjb.update_jenkins()
+        zuul.update_zuul()
+    else:
+        log('Not updating resources until we have a config-repo configured.')
+
+    for rid in relation_ids('jenkins-configurator'):
+        jenkins_configurator_relation_joined(rid)
 
 
 @hooks.hook()
@@ -63,7 +62,22 @@ def upgrade_charm():
 
 
 @hooks.hook()
-def jenkins_job_builder_relation_changed():
+def jenkins_configurator_relation_joined(rid=None):
+    """
+    Inform jenkins of any plugins our tests may require, as defined in the
+    control.yml of the config repo
+    """
+    plugins = jjb.required_plugins()
+    if plugins:
+        relation_set(required_plugins=' '.join(plugins), relation_id=rid)
+
+
+@hooks.hook(
+    'jenkins-configurator-relation-changed',
+    'gerrit-configurator-relation-changed',
+    'zuul-configurator-relation-changed',
+)
+def configurator_relation_changed():
     config_changed()
 
 

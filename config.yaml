@@ -1,14 +1,14 @@
 options:
-    install-source:
+    jjb-install-source:
         type: string
         default: 'git://github.com/openstack-infra/jenkins-job-builder.git'
         description: |
-            Git repository to install project from.  Alternatively, you may run
-            the 'make sourcedeps' target of the Makefile to package required
-            assets into the charm prior to deploying, for environments where
-            network access is restricted.   Any bundled package will override
-            a any git repository set in config.
-    jobs-config-repo:
+            Git repository to install jenkins-job-builder from.  Alternatively,
+            you may run the 'make sourcedeps' target of the Makefile to
+            package required assets into the charm prior to deploying, for
+            environments where network access is restricted.  Any bundled
+            package will override a any git repository set in config.
+    config-repo:
         type: string
         description: |
             Bzr repository url containing collection of yaml files containing
@@ -19,7 +19,7 @@ options:
             repository (oranything packaged with the charm) will end up
             installed in/etc/jenkins-job-builder/job-configs/ on the service
             unit.
-    jobs-config-revision:
+    config-repo-revision:
         type: string
         default: "trunk"
         description: |
@@ -38,8 +38,3 @@ options:
         description: |
             If schedule-updates is True, update-frequency sets the schedule on
             which the cronjob updates the branch and pushes changes to Jenkins.
-    required-packages:
-        type: string
-        description: |
-            Space-separated list of Ubuntu packages required to be installed in
-            order to run required jobs defined in repository.

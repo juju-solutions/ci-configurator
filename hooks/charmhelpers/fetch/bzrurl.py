@@ -46,3 +46,4 @@ class BzrUrlFetchHandler(BaseFetchHandler):
         except OSError as e:
             raise UnhandledSource(e.strerror)
         return dest_dir
+

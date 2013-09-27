@@ -1,9 +1,17 @@
-name: jenkins-job-builder
-summary: Jenkins Job Builder
+name: ci-configurator
+summary: |
+    Subordinate charm used to configure an integrated Jenkins, Zuul and Gerrit
+    continious-integration pipeline.
 maintainer: "Adam Gandelman <adamg@ubuntu.com>"
-description: jenkins-job-builder
+description: ci-configurator
 subordinate: true
 requires:
-  jenkins-job-builder:
+  jenkins-configurator:
     interface: jenkins-extension
+    scope: container
+  gerrit-configurator:
+    interface: gerrit-configurator
+    scope: container
+  zuul-configurator:
+    interface: zuul-layout
     scope: container

@@ -3,7 +3,7 @@ SOURCEDEPS_DIR ?= $(shell dirname $(PWD))/.sourcecode
 HOOKS_DIR := $(PWD)/hooks
 CHARM_DIR := $(PWD)
 FILES_DIR := $(PWD)/files
-CONFIGS_DIR := $(PWD)/job-configs
+CONFIGS_DIR := $(PWD)/ci-config-repo
 PYTHON := /usr/bin/env python
 GIT := /usr/bin/git
 TAR := /bin/tar
@@ -15,7 +15,7 @@ CAT := /bin/cat
 SED := /bin/sed
 JBB_GIT := "https://github.com/openstack-infra/jenkins-job-builder.git"
 
-build: sourcedeps proof
+build: configrepo sourcedeps proof
 
 revision:
 	@test -f revision || echo 0 > revision
@@ -34,9 +34,9 @@ sourcedeps: clean
 	@cd $(SOURCEDEPS_DIR) && $(TAR) cfz $(FILES_DIR)/jenkins-job-builder.tar.gz jenkins-job-builder/
 	@pip install --download $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs/ -r $(FILES_DIR)/pip-requires && $(CP) -R $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs $(FILES_DIR)/jenkins-job-builder_reqs
 
-jobsconfig:
+configrepo:
 	@$(RM) -rf $(CONFIGS_DIR)
-	@bzr branch $(CONFIGS_BZR_REPO) $(CONFIGS_DIR)
+	@bzr branch $(CONFIG_BZR_REPO) $(CONFIGS_DIR)
 
 clean:
 	@$(RM) -rf $(FILES_DIR)/*
