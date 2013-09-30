@@ -13,10 +13,10 @@ options:
         description: |
             Bzr repository url containing collection of yaml files containing
             jenkins-job-builder configs. This may also be packaged locally
-            prior to deploying by running 'make jobsconfig' target of the
-            Makefile topull from a specified repository.  Again, any bundled
+            prior to deploying by running 'make configrepo' target of the
+            Makefile to pull from a specified repository.  Again, any bundled
             assets will override any setting set here.  The contents of this
-            repository (oranything packaged with the charm) will end up
+            repository (or anything packaged with the charm) will end up
             installed in/etc/jenkins-job-builder/job-configs/ on the service
             unit.
     config-repo-revision:

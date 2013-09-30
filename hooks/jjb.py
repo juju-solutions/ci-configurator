@@ -32,7 +32,7 @@ url=%(jenkins_url)s
 
 def install():
     """
-    Install jenkins-job-builder from a remove git repository or a locally
+    Install jenkins-job-builder from a remote git repository or a locally
     bundled copy shipped with the charm.
     """
     if not os.path.isdir(CONFIG_DIR):
@@ -171,6 +171,13 @@ def update_jenkins():
     pkgs = required_packages()
     if pkgs:
         apt_install(pkgs, fatal=True)
+
+    # run repo setup scripts.
+    setupd = os.path.join(common.CI_CONFIG_DIR, 'setup.d')
+    if os.listdir(setupd):
+        cmd = ["run-parts", setupd]
+        log('Running repo setup.')
+        subprocess.check_call(cmd)
 
     save_context()
     # inform hook where to find the context json dump
