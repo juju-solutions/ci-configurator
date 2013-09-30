@@ -1,12 +1,11 @@
 import paramiko
 import sys
-
-import gerrit_utils as gerrit
+import subprocess
 
 from charmhelpers.core.hookenv import log, ERROR
 
-
 _connection = None
+GERRIT_DAEMON = "/etc/init.d/gerrit"
 
 
 def get_ssh(host, user, port, key_file):
@@ -20,6 +19,19 @@ def get_ssh(host, user, port, key_file):
 
     return _connection
 
+# start gerrit application
+def start_gerrit():
+    try:
+        subprocess.check_call([GERRIT_DAEMON, "start"])
+    except:
+        pass
+
+# stop gerrit application
+def stop_gerrit():
+    try:
+        subprocess.check_call([GERRIT_DAEMON, "stop"])
+    except:
+        pass
 
 class GerritException(Exception):
     def __init__(self, msg):
@@ -69,8 +81,8 @@ class GerritClient(object):
                 sys.exit(1)
 
         # reboot gerrit to refresh accounts
-        gerrit.stop_gerrit()
-        gerrit.start_gerrit()
+        stop_gerrit()
+        start_gerrit()
 
     def create_project(self, project):
         log('Creating gerrit project %s' % project)
