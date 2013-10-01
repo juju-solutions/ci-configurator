@@ -38,3 +38,7 @@ options:
         description: |
             If schedule-updates is True, update-frequency sets the schedule on
             which the cronjob updates the branch and pushes changes to Jenkins.
+    update-trigger:
+        type: string
+        default: ''
+        description: Used to force config-changed hook runs.
