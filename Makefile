@@ -14,7 +14,6 @@ CURL := /usr/bin/curl
 CAT := /bin/cat
 SED := /bin/sed
 JBB_GIT := "https://github.com/openstack-infra/jenkins-job-builder.git"
-CONFIG_BZR_REPO := "lp:~canonical-ci/canonical-ci/sunnyvale-ci-config"
 
 build: configrepo sourcedeps proof
 
