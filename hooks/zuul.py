@@ -1,4 +1,5 @@
 import os
+import subprocess
 
 import common
 
@@ -7,6 +8,7 @@ from charmhelpers.core.hookenv import log, INFO
 ZUUL_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'zuul')
 ZUUL_INIT_SCRIPT = "/etc/init.d/zuul"
 
+
 # start and stop services
 def start_zuul():
     log("*** Starting zuul server ***", INFO)
@@ -14,6 +16,8 @@ def start_zuul():
         subprocess.call([ZUUL_INIT_SCRIPT, "start"])
     except:
         pass
+
+
 def stop_zuul():
     log("*** Stopping zuul server ***", INFO)
     try:
