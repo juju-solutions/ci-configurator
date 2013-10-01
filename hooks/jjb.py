@@ -174,7 +174,7 @@ def update_jenkins():
 
     # run repo setup scripts.
     setupd = os.path.join(common.CI_CONFIG_DIR, 'setup.d')
-    if os.listdir(setupd):
+    if os.path.isdir(setupd):
         cmd = ["run-parts", setupd]
         log('Running repo setup.')
         subprocess.check_call(cmd)
