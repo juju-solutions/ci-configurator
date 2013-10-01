@@ -7,7 +7,7 @@ import pwd
 import common
 
 from charmhelpers.core.hookenv import (
-    log, relation_ids, relation_get, WARNING, ERROR)
+    log, relation_ids, relation_get, related_units, WARNING, ERROR)
 from charmhelpers.canonical_ci.gerrit import (
     GerritClient, start_gerrit, stop_gerrit)
 
@@ -22,12 +22,7 @@ SSH_PORT = 29418
 GIT_PATH = '/srv/git'
 
 
-def update_theme():
-    # TODO (adam_g)
-    # These installation destinations needs to come from principle via relation
-    theme_dest = '/home/gerrit2/review_site/etc/'
-    static_dest = '/home/gerrit2/review_site/static/'
-
+def update_theme(theme_dest, static_dest):
     if not os.path.isdir(THEME_DIR):
         log('Gerrit theme directory not found @ %s, skipping theme refresh.' %
             THEME_DIR, level=WARNING)
@@ -49,11 +44,7 @@ def update_theme():
     return True
 
 
-def update_hooks():
-    # TODO (adam_g)
-    # These installation destinations needs to come from principle via relation
-    hooks_dest = '/home/gerrit2/review_site/hooks/'
-
+def update_hooks(hooks_dest):
     if not os.path.isdir(HOOKS_DIR):
         log('Gerrit hooks directory not found @ %s, skipping hooks refresh.' %
             HOOKS_DIR, level=WARNING)
@@ -71,7 +62,7 @@ def update_hooks():
     return True
 
 
-def update_permissions():
+def update_permissions(admin_username, admin_email):
     # TODO (yolanda.robla)
     # These installation destinations needs to come from principle via relation
     git_permissions_dest = '/srv/git/All-Projects.git'
@@ -91,8 +82,6 @@ def update_permissions():
         tmppath = tempfile.mkdtemp('', 'gerritperms')
         if tmppath:
             os.chdir(tmppath)
-            user = relation_get('admin_username')
-            email = relation_get('admin_email')
             cmd = (
                 "export HOME='/srv/git' && "
                 "git config --global user.email %s && "
@@ -101,7 +90,7 @@ def update_permissions():
                 "git fetch repo "
                 "refs/meta/config:refs/remotes/origin/meta/config "
                 "&& git checkout meta/config" %
-                (user, email, git_permissions_dest)
+                (admin_username, admin_email, git_permissions_dest)
             )
             subprocess.check_call(cmd, shell=True)
 
@@ -113,7 +102,8 @@ def update_permissions():
                 "git config --global user.name %s && "
                 "git config --global user.email %s && "
                 "git commit -a -m 'Initial permissions' && "
-                "git push repo meta/config:meta/config" % (user, email)
+                "git push repo meta/config:meta/config" %
+                (admin_username, admin_email)
             )
             subprocess.check_call(cmd, shell=True)
         else:
@@ -196,14 +186,7 @@ def create_projects(admin_username, admin_privkey, base_url,
 
 
 # installs initial projects and branches based on config
-def update_projects():
-    username = relation_get('admin_username')
-    privkey_path = relation_get('admin_privkey_path')
-    if not username or not privkey_path:
-        log('Username or private key path not set, '
-            'skipping permissions refresh.', level=WARNING)
-        return False
-
+def update_projects(admin_username, privkey_path):
     if not os.path.isfile(PROJECTS_CONFIG_FILE):
         log('Gerrit projects directory not found @ %s, '
             'skipping permissions refresh.' %
@@ -221,25 +204,59 @@ def update_projects():
     projects_list = config['projects'].split(',')
     branches_list = config['branches'].split(',')
     if len(projects_list) > 0:
-        create_projects(relation_get('admin_username'),
-                        relation_get('admin_privkey_path'),
-                        config['base_url'], projects_list, branches_list)
+        create_projects(admin_username, privkey_path, config['base_url'],
+                        projects_list, branches_list)
 
 
 def update_gerrit():
     if not relation_ids('gerrit-configurator'):
+        log('*** No relation to gerrit, skipping update.')
         return
+
+    rel_settings = {}
+
+    for rid in relation_ids('gerrit-configurator'):
+        for unit in related_units(rid):
+            rel_settings = {
+                'admin_username': relation_get('admin_username',
+                                               relation_id=rid, unit=unit),
+                'admin_email': relation_get('admin_email',
+                                            relation_id=rid, unit=unit),
+                'privkey_path': relation_get('admin_privkey_path',
+                                             relation_id=rid, unit=unit),
+                'review_site_root': relation_get('review_site_dir',
+                                                 relation_id=rid, unit=unit)
+            }
+
+    if not rel_settings:
+        log('Found no relation data set by gerrit, skipping update.')
+        return
+
+    if (None in rel_settings.itervalues() or
+       '' in rel_settings.itervalues()):
+        log('Username or private key path not set, skipping permissions '
+            'refresh.', level=WARNING)
+        return False
 
     log("*** Updating gerrit.")
     if not os.path.isdir(GERRIT_CONFIG_DIR):
         log('Could not find gerrit config directory at expected location, '
             'skipping gerrit update (%s)' % GERRIT_CONFIG_DIR)
         return
+
+    # installation location of hooks and theme, based on review_site path
+    # exported from principle
+    hooks_dir = os.path.join(rel_settings['review_site_root'], 'etc', 'hooks')
+    theme_dir = os.path.join(rel_settings['review_site_root'], 'etc')
+    static_dir = os.path.join(rel_settings['review_site_root'], 'static')
+
     restart_req = False
-    restart_req = update_theme()
-    restart_req = update_hooks()
-    restart_req = update_permissions()
-    restart_req = update_projects()
+    restart_req = update_projects(rel_settings['admin_username'],
+                                  rel_settings['privkey_path'])
+    restart_req = update_permissions(rel_settings['admin_username'],
+                                     rel_settings['admin_email'])
+    restart_req = update_hooks(hooks_dir)
+    restart_req = update_theme(theme_dir, static_dir)
 
     if restart_req:
         stop_gerrit()

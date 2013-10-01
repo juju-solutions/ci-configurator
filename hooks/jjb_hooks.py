@@ -14,7 +14,6 @@ from charmhelpers.core.hookenv import (
     config,
     log,
     relation_ids,
-    relation_get,
     relation_set,
     Hooks,
     UnregisteredHookError,
@@ -47,22 +46,9 @@ def config_changed():
             conf_repo, config('config-repo-revision'))
 
     if have_repo:
-        # check if we need to update gerrit and have all the settings
-        if relation_ids('gerrit-configurator'):
-            admin_username = relation_get('admin_username')
-            admin_email = relation_get('admin_email')
-            if admin_username and admin_email:
-                gerrit.update_gerrit()
-            else:
-                # error
-                log('Not updating gerrit until we have relation settings.')
-                return False
-
+        gerrit.update_gerrit()
         jjb.update_jenkins()
-
-        # check if we have zuul relationship
-        if relation_ids('zuul-configurator'):
-            zuul.update_zuul()
+        zuul.update_zuul()
     else:
         log('Not updating resources until we have a config-repo configured.')
 

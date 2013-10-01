@@ -3,7 +3,7 @@ import subprocess
 
 import common
 
-from charmhelpers.core.hookenv import log, INFO
+from charmhelpers.core.hookenv import log, related_units, relation_ids, INFO
 
 ZUUL_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'zuul')
 ZUUL_INIT_SCRIPT = "/etc/init.d/zuul"
@@ -27,6 +27,15 @@ def stop_zuul():
 
 
 def update_zuul():
+    zuul_units = []
+
+    for rid in relation_ids('zuul-configurator'):
+        [zuul_units.append(u) for u in related_units(rid)]
+
+    if not zuul_units:
+        log('*** No related zuul units, skipping config.')
+        return
+
     log("*** Updating zuul.")
     layout_path = '/etc/zuul/layout.yaml'
 
