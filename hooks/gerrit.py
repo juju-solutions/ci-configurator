@@ -157,12 +157,12 @@ def create_projects(admin_username, admin_privkey, base_url, project_list, branc
                         subprocess.check_call(cmd, shell=True)
 
                         # push to each branch
+                        branch_list.append('master')
                         for branch in branch_list:
                             branch = branch.strip()
                             try:
                                 cmd = ('git checkout %(branch)s && git pull && '
-                                    'git push gerrit origin/master:refs/heads/%(branch)s && '
-                                    'git push gerrit origin/master:refs/for/%(branch)s' % 
+                                    'git push gerrit origin/master:refs/heads/%(branch)s ' %
                                     {'branch':branch})
                                 subprocess.check_call(cmd, shell=True)
                             except Exception as e:
