@@ -160,7 +160,6 @@ def create_projects(admin_username, admin_privkey, base_url,
                         subprocess.check_call(cmd, shell=True)
 
                         # push to each branch
-                        branch_list.append('master')
                         for branch in branch_list:
                             branch = branch.strip()
                             try:
