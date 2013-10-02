@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import yaml
 import pwd
+import sys
 
 import common
 
@@ -118,70 +119,62 @@ def update_permissions(admin_username, admin_email):
 
 # globally create all projects, clone and push
 def create_projects(admin_username, admin_privkey, base_url,
-                    project_list, branch_list):
-    branches_path = tempfile.mkdtemp('', 'gerritbranches')
-    if branches_path:
-        subprocess.check_call(
-            ["chown", GERRIT_USER+":"+GERRIT_USER, branches_path])
-        os.chmod(branches_path, 0774)
-        os.chdir(branches_path)
+                    projects, branches):
+    tmpdir = tempfile.mkdtemp()
+    subprocess.check_call(
+        ["chown", GERRIT_USER+":"+GERRIT_USER, tmpdir])
+    os.chmod(tmpdir, 0774)
 
-        # change to gerrit to perform project creation
-        pw = pwd.getpwnam(GERRIT_USER)
-        pid = os.fork()
-        if pid == 0:
-            # we are on child, create projects
-            try:
-                os.setuid(pw[3])
-                gerrit_client = GerritClient(
-                    host='localhost',
-                    user=admin_username, port=SSH_PORT,
-                    key_file=admin_privkey)
+    # change to gerrit to perform project creation
+    pw = pwd.getpwnam(GERRIT_USER)
 
-                for project in project_list:
-                    # split project in name and path
-                    project_set = project.split('=')
-                    if len(project_set) == 2:
-                        # create project
-                        project_name = project_set[0].strip()
-                        gerrit_client.create_project(project_name)
+    gerrit_client = GerritClient(
+        host='localhost',
+        user=admin_username, port=SSH_PORT,
+        key_file=admin_privkey)
 
-                        # clone and push
-                        os.chdir(branches_path)
-                        path_name = project_name.replace('/', '')
-                        cmd = ('git clone ssh://%s@%s/%s %s' %
-                               (admin_username, base_url,
-                                project_set[1].strip(), path_name))
-                        subprocess.check_call(cmd)
+    for project in projects:
+        # create projects in gerrit, should be idempotent
+        gerrit_client.create_project(project['name'])
 
-                        os.chdir(branches_path+'/'+path_name)
-                        cmd = ('git remote add gerrit %s/%s.git' %
-                               (GIT_PATH, project_name))
-                        subprocess.check_call(cmd)
+    pid = os.fork()
+    if pid == 0:
+        try:
+            os.setuid(pw[3])
+            for project in projects:
+                name, repo = project.itervalues()
+                # clone and push
+                os.chdir(tmpdir)
+                path_name = os.path.join(tmpdir, name.replace('/', ''))
+                repo_url = 'ssh://%s@%s/%s' % (admin_username, base_url, repo)
+                cmd = ['git', 'clone', repo_url, path_name]
+                subprocess.check_call(cmd)
 
-                        # push to each branch
-                        for branch in branch_list:
-                            branch = branch.strip()
-                            try:
-                                cmd = (
-                                    'git checkout %(branch)s && git pull && '
-                                    'git push gerrit '
-                                    'origin/master:refs/heads/%(branch)s ' %
-                                    {'branch': branch}
-                                )
-                                subprocess.check_call(cmd)
-                            except Exception as e:
-                                log('Error creating branch: %s' %
-                                    str(e), ERROR)
+                os.chdir(path_name)
+                cmd = ['git', 'remote', 'add', 'gerrit',
+                       '%s/%s.git' % (GIT_PATH, repo)]
+                subprocess.check_call(cmd)
 
-                gerrit_client.flush_cache()
-            except Exception as e:
-                log('Error creating project: %s' % str(e), ERROR)
-                os._exit(1)
-            finally:
-                os._exit(0)
-        else:
-            os.wait()
+                # push to each branch
+                for branch in branches:
+                    branch = branch.strip()
+                    ref = 'HEAD:refs/heads/%s' % branch
+                    cmds = [
+                        ['git', 'checkout', branch],
+                        ['git', 'pull'],
+                        ['git', 'push', 'gerrit', ref]
+                    ]
+                    [subprocess.check_call(cmd) for cmd in cmds]
+            os._exit(0)
+        except Exception as e:
+            log('Error creating project branch: %s' % str(e), ERROR)
+            os._exit(1)
+    else:
+        (pid, rc) = os.wait()
+        if rc != 0:
+            log('Error creating projects.')
+            sys.exit(1)
+        gerrit_client.flush_cache()
 
 
 # installs initial projects and branches based on config
@@ -200,11 +193,11 @@ def update_projects(admin_username, privkey_path):
        'projects' not in config):
         log('Gerrit projects config not found', level=WARNING)
 
-    projects_list = config['projects'].split(',')
-    branches_list = config['branches'].split(',')
-    if len(projects_list) > 0:
+    projects = config['projects']
+    branches = config['branches']
+    if projects:
         create_projects(admin_username, privkey_path, config['base_url'],
-                        projects_list, branches_list)
+                        projects, branches)
 
 
 def update_gerrit():
