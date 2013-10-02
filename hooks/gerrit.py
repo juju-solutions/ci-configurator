@@ -152,12 +152,12 @@ def create_projects(admin_username, admin_privkey, base_url,
                         cmd = ('git clone ssh://%s@%s/%s %s' %
                                (admin_username, base_url,
                                 project_set[1].strip(), path_name))
-                        subprocess.check_call(cmd, shell=True)
+                        subprocess.check_call(cmd)
 
                         os.chdir(branches_path+'/'+path_name)
                         cmd = ('git remote add gerrit %s/%s.git' %
                                (GIT_PATH, project_name))
-                        subprocess.check_call(cmd, shell=True)
+                        subprocess.check_call(cmd)
 
                         # push to each branch
                         for branch in branch_list:
@@ -169,7 +169,7 @@ def create_projects(admin_username, admin_privkey, base_url,
                                     'origin/master:refs/heads/%(branch)s ' %
                                     {'branch': branch}
                                 )
-                                subprocess.check_call(cmd, shell=True)
+                                subprocess.check_call(cmd)
                             except Exception as e:
                                 log('Error creating branch: %s' %
                                     str(e), ERROR)
