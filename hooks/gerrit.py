@@ -245,7 +245,7 @@ def update_gerrit():
 
     # installation location of hooks and theme, based on review_site path
     # exported from principle
-    hooks_dir = os.path.join(rel_settings['review_site_root'], 'etc', 'hooks')
+    hooks_dir = os.path.join(rel_settings['review_site_root'], 'hooks')
     theme_dir = os.path.join(rel_settings['review_site_root'], 'etc')
     static_dir = os.path.join(rel_settings['review_site_root'], 'static')
 
