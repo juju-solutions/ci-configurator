@@ -219,13 +219,13 @@ def update_gerrit():
         for unit in related_units(rid):
             rel_settings = {
                 'admin_username': relation_get('admin_username',
-                                               relation_id=rid, unit=unit),
+                                               rid=rid, unit=unit),
                 'admin_email': relation_get('admin_email',
-                                            relation_id=rid, unit=unit),
+                                            rid=rid, unit=unit),
                 'privkey_path': relation_get('admin_privkey_path',
-                                             relation_id=rid, unit=unit),
+                                             rid=rid, unit=unit),
                 'review_site_root': relation_get('review_site_dir',
-                                                 relation_id=rid, unit=unit)
+                                                 rid=rid, unit=unit)
             }
 
     if not rel_settings:

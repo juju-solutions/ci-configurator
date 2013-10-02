@@ -76,7 +76,7 @@ is added, configuration of that service is skipped:
 
     $ tree -L 1.
     |--control.yml
-    +--gerrit
+    +-- gerrit
     +-- jenkins_jobs
     +-- zuul
 
