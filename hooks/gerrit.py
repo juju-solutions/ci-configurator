@@ -2,7 +2,6 @@ import os
 import subprocess
 import tempfile
 import yaml
-import pwd
 import sys
 
 import common
@@ -63,7 +62,7 @@ def update_hooks(hooks_dest, settings):
             for key, value in settings.items():
                 pattern = '{{'+key+'}}'
                 contents = contents.replace(pattern, value)
-            with open(current_path,'w') as f:
+            with open(current_path, 'w') as f:
                 f.write(contents)
 
     return True
@@ -131,56 +130,40 @@ def create_projects(admin_username, admin_privkey, base_url,
         ["chown", GERRIT_USER+":"+GERRIT_USER, tmpdir])
     os.chmod(tmpdir, 0774)
 
-    # change to gerrit to perform project creation
-    pw = pwd.getpwnam(GERRIT_USER)
-
     gerrit_client = GerritClient(
         host='localhost',
         user=admin_username, port=SSH_PORT,
         key_file=admin_privkey)
 
-    for project in projects:
-        # create projects in gerrit, should be idempotent
-        gerrit_client.create_project(project['name'])
+    try:
+        for project in projects:
+            name, repo = project.itervalues()
+            gerrit_client.create_project(name)
+            path_name = os.path.join(tmpdir, name.replace('/', ''))
+            # clone and push
+            repo_url = 'ssh://%s@%s/%s' % (admin_username, base_url, repo)
+            cmd = ['git', 'clone', repo_url, path_name]
+            common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
+            cmd = ['git', 'remote', 'add', 'gerrit',
+                   '%s/%s.git' % (GIT_PATH, repo)]
+            common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=path_name)
 
-    pid = os.fork()
-    if pid == 0:
-        try:
-            os.setuid(pw[3])
-            for project in projects:
-                name, repo = project.itervalues()
-                # clone and push
-                os.chdir(tmpdir)
-                path_name = os.path.join(tmpdir, name.replace('/', ''))
-                repo_url = 'ssh://%s@%s/%s' % (admin_username, base_url, repo)
-                cmd = ['git', 'clone', repo_url, path_name]
-                subprocess.check_call(cmd)
-
-                os.chdir(path_name)
-                cmd = ['git', 'remote', 'add', 'gerrit',
-                       '%s/%s.git' % (GIT_PATH, repo)]
-                subprocess.check_call(cmd)
-
-                # push to each branch
-                for branch in branches:
-                    branch = branch.strip()
-                    ref = 'HEAD:refs/heads/%s' % branch
-                    cmds = [
-                        ['git', 'checkout', branch],
-                        ['git', 'pull'],
-                        ['git', 'push', 'gerrit', ref]
-                    ]
-                    [subprocess.check_call(cmd) for cmd in cmds]
-            os._exit(0)
-        except Exception as e:
-            log('Error creating project branch: %s' % str(e), ERROR)
-            os._exit(1)
-    else:
-        (pid, rc) = os.wait()
-        if rc != 0:
-            log('Error creating projects.')
-            sys.exit(1)
-        gerrit_client.flush_cache()
+            # push to each branch
+            for branch in branches:
+                branch = branch.strip()
+                ref = 'HEAD:refs/heads/%s' % branch
+                cmds = [
+                    ['git', 'checkout', branch],
+                    ['git', 'pull'],
+                    ['git', 'push', 'gerrit', ref]
+                ]
+                for cmd in cmds:
+                    common.run_as_user(user=GERRIT_USER, cmd=cmd,
+                                       cwd=path_name)
+            gerrit_client.flush_cache()
+    except Exception as e:
+        log('Error creating project branch: %s' % str(e), ERROR)
+        sys.exit(1)
 
 
 # installs initial projects and branches based on config

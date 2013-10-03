@@ -1,9 +1,10 @@
 import os
+import pwd
 import shutil
 import subprocess
 import yaml
 
-from charmhelpers.core.hookenv import log
+from charmhelpers.core.hookenv import log, ERROR
 
 LOCAL_CONFIG_REPO = 'ci-config-repo'
 CONFIG_DIR = '/etc/ci-configurator'
@@ -78,3 +79,22 @@ def sync_dir(src, dst):
             shutil.copytree(_path, dest_dir)
         else:
             shutil.copy(_path, dst)
+
+
+def _run_as_user(user):
+    try:
+        user = pwd.getpwnam(user)
+    except KeyError:
+        log('Invalid user: %s' % user, ERROR)
+        raise Exception('Invalid user: %s' % user)
+    uid, gid = user.pw_uid, user.pw_gid
+    os.environ['HOME'] = user.pw_dir
+
+    def _inner():
+        os.setgid(gid)
+        os.setuid(uid)
+    return _inner
+
+
+def run_as_user(user, cmd, cwd='/'):
+    return subprocess.check_output(cmd, preexec_fn=_run_as_user(user), cwd=cwd)
