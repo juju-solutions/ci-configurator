@@ -3,4 +3,4 @@
 if [[ -n "$CONFIG_BZR_REPO" ]] ; then
   make configrepo
 fi
-make sourcedeps
+make installdeps

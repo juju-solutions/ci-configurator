@@ -15,7 +15,7 @@ CAT := /bin/cat
 SED := /bin/sed
 JBB_GIT := "https://github.com/openstack-infra/jenkins-job-builder.git"
 
-build: configrepo sourcedeps proof
+build: configrepo installdeps proof
 
 revision:
 	@test -f revision || echo 0 > revision
@@ -25,7 +25,7 @@ proof: revision
 	@(charm proof $(PWD) || [ $$? -eq 100 ]) && echo OK
 	@test `cat revision` = 0 && rm revision
 
-sourcedeps: clean
+installdeps: clean
 	@mkdir -p $(SOURCEDEPS_DIR) $(FILES_DIR)
 	@mkdir -p $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs
 	@echo Updating source dependencies...
@@ -50,5 +50,5 @@ sync:
 
 
 
-.PHONY: revision proof sourcedeps
+.PHONY: revision proof installdeps
 
