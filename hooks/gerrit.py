@@ -45,21 +45,24 @@ def update_theme(theme_dest, static_dest):
     return True
 
 
-def update_hooks(hooks_dest):
+def update_hooks(hooks_dest, settings):
     if not os.path.isdir(HOOKS_DIR):
         log('Gerrit hooks directory not found @ %s, skipping hooks refresh.' %
             HOOKS_DIR, level=WARNING)
         return False
 
-    # TODO:
-    # The hooks require some dynamic data (git server, admin_username)
-    # etc.  Need to find a way to either pass it in via:
-    #  - a common file sourced by hooks that contains stuff as environment
-    #    variables
-    #       OR
-    #  - some basic templating on the script itself.
     log('Installing gerrit hooks in %s to %s.' % (HOOKS_DIR, hooks_dest))
     common.sync_dir(HOOKS_DIR, hooks_dest)
+
+    #  hook allow tags like {{var}}, so replace all entries in file
+    with open(hooks_dest, 'r') as f:
+        contents = f.read()
+    for key, value in settings.items():
+        pattern = '{{'+key+'}}'
+        contents = contents.replace(pattern, value)
+    with open(hooks_dest,'w') as f:
+        f.write(contents)
+
     return True
 
 
@@ -247,7 +250,7 @@ def update_gerrit():
                                   rel_settings['privkey_path'])
     restart_req = update_permissions(rel_settings['admin_username'],
                                      rel_settings['admin_email'])
-    restart_req = update_hooks(hooks_dir)
+    restart_req = update_hooks(hooks_dir, rel_settings)
     restart_req = update_theme(theme_dir, static_dir)
 
     if restart_req:
