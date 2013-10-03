@@ -55,13 +55,16 @@ def update_hooks(hooks_dest, settings):
     common.sync_dir(HOOKS_DIR, hooks_dest)
 
     #  hook allow tags like {{var}}, so replace all entries in file
-    with open(hooks_dest, 'r') as f:
-        contents = f.read()
-    for key, value in settings.items():
-        pattern = '{{'+key+'}}'
-        contents = contents.replace(pattern, value)
-    with open(hooks_dest,'w') as f:
-        f.write(contents)
+    for filename in os.listdir(hooks_dest):
+        current_path = os.path.join(hooks_dest, filename)
+        if os.path.isfile(current_path):
+            with open(current_path, 'r') as f:
+                contents = f.read()
+            for key, value in settings.items():
+                pattern = '{{'+key+'}}'
+                contents = contents.replace(pattern, value)
+            with open(current_path,'w') as f:
+                f.write(contents)
 
     return True
 
