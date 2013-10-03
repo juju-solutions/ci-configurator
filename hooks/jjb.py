@@ -167,17 +167,17 @@ def update_jenkins():
             hook, ERROR)
         sys.exit(1)
 
-    # install any packages that the repo says we need as dependencies.
-    pkgs = required_packages()
-    if pkgs:
-        apt_install(pkgs, fatal=True)
-
     # run repo setup scripts.
     setupd = os.path.join(common.CI_CONFIG_DIR, 'setup.d')
     if os.path.isdir(setupd):
         cmd = ["run-parts", setupd]
         log('Running repo setup.')
         subprocess.check_call(cmd)
+
+    # install any packages that the repo says we need as dependencies.
+    pkgs = required_packages()
+    if pkgs:
+        apt_install(pkgs, fatal=True)
 
     save_context()
     # inform hook where to find the context json dump
