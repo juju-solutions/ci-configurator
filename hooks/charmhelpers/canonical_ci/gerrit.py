@@ -90,6 +90,17 @@ class GerritClient(object):
         stdout, stderr = self._run_cmd(cmd)
         if not stdout and not stderr:
             log('Created new project %s.' % project)
+            return True
+        else:
+            log('Error creating project %s, skipping project creation' % project)
+            return False
+
+    def create_group(self, group):
+        log('Creating gerrit group %s' % group)
+        cmd = ('gerrit create-group %s' % group)
+        stdout, stderr = self._run_cmd(cmd)
+        if not stdout and not stderr:
+            log('Created new group %s.' % group)
 
     def flush_cache(self):
         cmd = ('gerrit flush-caches')

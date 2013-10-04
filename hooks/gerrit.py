@@ -17,6 +17,7 @@ THEME_DIR = os.path.join(GERRIT_CONFIG_DIR, 'theme')
 HOOKS_DIR = os.path.join(GERRIT_CONFIG_DIR, 'hooks')
 PERMISSIONS_DIR = os.path.join(GERRIT_CONFIG_DIR, 'permissions')
 PROJECTS_CONFIG_FILE = os.path.join(GERRIT_CONFIG_DIR, 'projects/projects.yml')
+GROUPS_CONFIG_FILE = os.path.join(GERRIT_CONFIG_DIR, 'permissions/groups.yml')
 GERRIT_USER = "gerrit2"
 SSH_PORT = 29418
 GIT_PATH = '/srv/git'
@@ -68,7 +69,7 @@ def update_hooks(hooks_dest, settings):
     return True
 
 
-def update_permissions(admin_username, admin_email):
+def update_permissions(admin_username, admin_email, admin_privkey):
     # TODO (yolanda.robla)
     # These installation destinations needs to come from principle via relation
     git_permissions_dest = '/srv/git/All-Projects.git'
@@ -81,6 +82,19 @@ def update_permissions(admin_username, admin_email):
     if not os.path.isdir(git_permissions_dest):
         log('Target permissions directory @ %s, is still not ready, '
             'please retry.' % git_permissions_dest, level=WARNING)
+
+    # parse groups file and create groups
+    gerrit_client = GerritClient(
+        host='localhost',
+        user=admin_username, port=SSH_PORT,
+        key_file=admin_privkey)
+
+    config = {}
+    with open(GROUPS_CONFIG_FILE, 'r') as f:
+        config = yaml.load(f)
+    for group, teams in config.items():
+        # create group
+        gerrit_client.create_group(group)
 
     # update git repo with permissions
     log('Installing gerrit permissions from %s.' % PERMISSIONS_DIR)
@@ -139,27 +153,38 @@ def create_projects(admin_username, admin_privkey, base_url,
         for project in projects:
             name, repo = project.itervalues()
             gerrit_client.create_project(name)
+
+            # successfully created project, push from git
             path_name = os.path.join(tmpdir, name.replace('/', ''))
             # clone and push
             repo_url = 'ssh://%s@%s/%s' % (admin_username, base_url, repo)
             cmd = ['git', 'clone', repo_url, path_name]
             common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
-            cmd = ['git', 'remote', 'add', 'gerrit',
-                   '%s/%s.git' % (GIT_PATH, repo)]
-            common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=path_name)
+            cmds = [
+                ['git', 'remote', 'add', 'gerrit', '%s/%s.git' % (GIT_PATH, repo)],
+                ['git', 'fetch', '--all']
+            ]
+            for cmd in cmds:
+                common.run_as_user(user=GERRIT_USER, cmd=cmd,
+                    cwd=path_name)
 
-            # push to each branch
+            # push to each branch if needed
             for branch in branches:
                 branch = branch.strip()
-                ref = 'HEAD:refs/heads/%s' % branch
-                cmds = [
-                    ['git', 'checkout', branch],
-                    ['git', 'pull'],
-                    ['git', 'push', 'gerrit', ref]
-                ]
-                for cmd in cmds:
-                    common.run_as_user(user=GERRIT_USER, cmd=cmd,
-                                       cwd=path_name)
+                try:
+                    cmd = ['git', 'show-branch', 'gerrit/'+branch]
+                    common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=path_name)
+                except Exception:
+                    # branch does not exist, create it
+                    ref = 'HEAD:refs/heads/%s' % 'gerrit/'+branch
+                    cmds = [
+                        ['git', 'checkout', branch],
+                        ['git', 'pull'],
+                        ['git', 'push', '--force', 'gerrit', ref]
+                        ]
+                    for cmd in cmds:
+                        common.run_as_user(user=GERRIT_USER, cmd=cmd,
+                            cwd=path_name)
             gerrit_client.flush_cache()
     except Exception as e:
         log('Error creating project branch: %s' % str(e), ERROR)
@@ -235,7 +260,8 @@ def update_gerrit():
     restart_req = update_projects(rel_settings['admin_username'],
                                   rel_settings['privkey_path'])
     restart_req = update_permissions(rel_settings['admin_username'],
-                                     rel_settings['admin_email'])
+                                     rel_settings['admin_email'],
+                                     rel_settings['privkey_path'])
     restart_req = update_hooks(hooks_dir, rel_settings)
     restart_req = update_theme(theme_dir, static_dir)
 
