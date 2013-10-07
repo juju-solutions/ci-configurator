@@ -25,6 +25,7 @@ hooks = Hooks()
 
 @hooks.hook()
 def install():
+    common.ensure_user()
     if not os.path.exists(common.CONFIG_DIR):
         os.mkdir(common.CONFIG_DIR)
     jjb.install()
@@ -32,6 +33,14 @@ def install():
 
 @hooks.hook()
 def config_changed():
+    # setup identity to reach private LP resources
+    common.ensure_user()
+    common.install_ssh_keys()
+    lp_user = config('lp-login')
+    if lp_user:
+        cmd = ['bzr', 'launchpad-login', lp_user]
+        common.run_as_user(cmd=cmd, user=common.CI_USER)
+
     conf_repo = config('config-repo')
     bundled_repo = os.path.join(charm_dir(), common.LOCAL_CONFIG_REPO)
 

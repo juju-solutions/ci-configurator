@@ -4,7 +4,11 @@ import shutil
 import subprocess
 import yaml
 
-from charmhelpers.core.hookenv import log, ERROR
+from charmhelpers.core.host import adduser, add_user_to_group
+from charmhelpers.core.hookenv import charm_dir, config, log, ERROR
+
+CI_USER = 'ci'
+CI_GROUP = 'ci'
 
 LOCAL_CONFIG_REPO = 'ci-config-repo'
 CONFIG_DIR = '/etc/ci-configurator'
@@ -21,11 +25,14 @@ def update_configs_from_charm(bundled_configs):
     if os.path.exists(CI_CONFIG_DIR):
         shutil.rmtree(CI_CONFIG_DIR)
     shutil.copytree(bundled_configs, CI_CONFIG_DIR)
+    subprocess.check_call(['chown', '-R', CI_USER, CONFIG_DIR])
 
 
 def update_configs_from_repo(repo, revision=None):
     log('*** Updating %s from remote repo: %s' %
         (CI_CONFIG_DIR, repo))
+
+    subprocess.check_call(['chown', '-R', CI_USER, CONFIG_DIR])
 
     if (os.path.isdir(CI_CONFIG_DIR) and
        not os.path.isdir(os.path.join(CI_CONFIG_DIR, '.bzr'))):
@@ -38,7 +45,7 @@ def update_configs_from_repo(repo, revision=None):
         cmd = ['bzr', 'branch', repo, CI_CONFIG_DIR]
         if revision and revision != 'trunk':
             cmd += ['-r', revision]
-        subprocess.check_call(cmd)
+        run_as_user(cmd=cmd, user=CI_USER)
         return
 
     cmds = []
@@ -54,7 +61,7 @@ def update_configs_from_repo(repo, revision=None):
     if cmds:
         os.chdir(CI_CONFIG_DIR)
         log('Running bzr: %s' % cmds)
-        [subprocess.check_call(c) for c in cmds]
+        [run_as_user(cmd=c, user=CI_USER, cwd=CI_CONFIG_DIR) for c in cmds]
 
 
 def load_control():
@@ -98,3 +105,45 @@ def _run_as_user(user):
 
 def run_as_user(user, cmd, cwd='/'):
     return subprocess.check_output(cmd, preexec_fn=_run_as_user(user), cwd=cwd)
+
+
+def ensure_user():
+    adduser(CI_USER)
+    add_user_to_group(CI_USER, CI_GROUP)
+    home = os.path.join('/home', CI_USER)
+    if not os.path.isdir(home):
+        os.mkdir(home)
+    subprocess.check_call(
+        ['chown', '-R', '%s:%s' % (CI_USER, CI_GROUP), home])
+
+
+def install_ssh_keys():
+    '''Installs configured ssh keys + known hosts for accessing lp branches'''
+    priv_key = config('ssh-privkey')
+    pub_key = config('ssh-pubkey')
+    if not priv_key or not pub_key:
+        log('Missing SSH keys in charm config, will not install.')
+        return
+
+    ssh_dir = os.path.join('/home', CI_USER, '.ssh')
+    if not os.path.isdir(ssh_dir):
+        os.mkdir(ssh_dir)
+
+    _priv_key = os.path.join(ssh_dir, 'id_rsa')
+    _pub_key = os.path.join(ssh_dir, 'id_rsa.pub')
+    with open(_priv_key, 'wb') as out:
+        out.write(priv_key)
+    with open(_pub_key, 'wb') as out:
+        out.write(pub_key)
+
+    # ssh keys are used to branch from LP. install bazaar.launchpad.net's
+    # host keys, as well.
+    lp_kh = os.path.join(charm_dir(), 'launchpad_host_keys')
+    if lp_kh:
+        with open(os.path.join(ssh_dir, 'known_hosts'), 'wb') as out:
+            out.write(open(lp_kh).read())
+
+    subprocess.check_call(['chmod', '0600', _priv_key])
+    subprocess.check_call(['chown', '-R', CI_USER, ssh_dir])
+
+    log('*** Installed ssh keys for user %s to %s' % (CI_USER, ssh_dir))

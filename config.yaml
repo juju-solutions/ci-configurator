@@ -25,6 +25,20 @@ options:
         description: |
             If bzr repo specified, which revision to use.  Defaults to
             trunk, and is updated on during every config-changed hook.
+    lp-login:
+        type: string
+        default: ''
+        description: |
+            Launchpad login name of user branching bzr repo (required for
+            private branhces).
+    ssh-privkey:
+        type: string
+        description: |
+            SSH private key for associated LP user.
+    ssh-pubkey:
+        type: string
+        description: |
+            SSH public key for associated LP user.
     schedule-updates:
         type: boolean
         default: false
