@@ -7,7 +7,7 @@ import sys
 import common
 
 from charmhelpers.core.hookenv import (
-    log, relation_ids, relation_get, related_units, WARNING, ERROR, INFO)
+    log, relation_ids, relation_get, related_units, WARNING, ERROR)
 from charmhelpers.canonical_ci.gerrit import (
     GerritClient, start_gerrit, stop_gerrit)
 
@@ -101,29 +101,38 @@ def update_permissions(admin_username, admin_email, admin_privkey):
 
             cmds = [
                 ['git', 'init'],
-                ['git', 'remote', 'add', 'repo', 'ssh://%s@localhost:%s/All-Projects.git' % (admin_username, SSH_PORT)],
-                ['git', 'fetch', 'repo', 'refs/meta/config:refs/remotes/origin/meta/config'],
+                ['git', 'remote', 'add', 'repo',
+                 'ssh://%s@localhost:%s/All-Projects.git' %
+                 (admin_username, SSH_PORT)],
+                ['git', 'fetch', 'repo',
+                 'refs/meta/config:refs/remotes/origin/meta/config'],
                 ['git', 'checkout', 'meta/config']
             ]
+
             for cmd in cmds:
-                common.run_as_user(user=GERRIT_USER, cmd=cmd,
-                    cwd=tmppath)
+                common.run_as_user(
+                    user=GERRIT_USER, cmd=cmd, cwd=tmppath)
 
             common.sync_dir(PERMISSIONS_DIR+'/All-Projects', tmppath)
             os.chdir(tmppath)
+
             # generate groups file
             query = 'SELECT name, group_uuid FROM account_groups'
-            cmd = ['java', '-jar', WAR_PATH, 'gsql', '-d', SITE_PATH, '-c', query]
+            cmd = ['java', '-jar', WAR_PATH,
+                   'gsql', '-d', SITE_PATH, '-c', query]
             result = subprocess.check_output(cmd)
+
             if result:
                 # parse file and generate groups
                 output = result.splitlines()
-                with open('groups','w') as f:
+                with open('groups', 'w') as f:
                     for item in output[2:]:
                         # split between name and id
                         data = item.split('|')
-                        if len(data)==2:
-                            f.write('%s\t%s\n' % (data[1].strip(), data[0].strip()))
+                        if len(data) == 2:
+                            f.write(
+                                '%s\t%s\n' % (data[1].strip(), data[0].strip())
+                            )
 
                 cmds = [
                     ['git', 'config', '--global', 'user.name', admin_username],
@@ -132,8 +141,8 @@ def update_permissions(admin_username, admin_email, admin_privkey):
                     ['git', 'push', 'repo', 'meta/config:meta/config']
                 ]
                 for cmd in cmds:
-                    common.run_as_user(user=GERRIT_USER, cmd=cmd,
-                        cwd=tmppath)
+                    common.run_as_user(
+                        user=GERRIT_USER, cmd=cmd, cwd=tmppath)
             else:
                 log('Error querying for groups', level=ERROR)
                 return False
@@ -172,19 +181,21 @@ def create_projects(admin_username, admin_privkey, base_url,
             cmd = ['git', 'clone', repo_url, path_name]
             common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
             cmds = [
-                ['git', 'remote', 'add', 'gerrit', '%s/%s.git' % (GIT_PATH, repo)],
+                ['git', 'remote', 'add', 'gerrit', '%s/%s.git' %
+                 (GIT_PATH, repo)],
                 ['git', 'fetch', '--all']
             ]
+
             for cmd in cmds:
-                common.run_as_user(user=GERRIT_USER, cmd=cmd,
-                    cwd=path_name)
+                common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=path_name)
 
             # push to each branch if needed
             for branch in branches:
                 branch = branch.strip()
                 try:
                     cmd = ['git', 'show-branch', 'gerrit/'+branch]
-                    common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=path_name)
+                    common.run_as_user(
+                        user=GERRIT_USER, cmd=cmd, cwd=path_name)
                 except Exception:
                     # branch does not exist, create it
                     ref = 'HEAD:refs/heads/%s' % branch
@@ -194,9 +205,11 @@ def create_projects(admin_username, admin_privkey, base_url,
                         ['git', 'push', '--force', 'gerrit', ref]
                         ]
                     for cmd in cmds:
-                        common.run_as_user(user=GERRIT_USER, cmd=cmd,
-                            cwd=path_name)
+                        common.run_as_user(
+                            user=GERRIT_USER, cmd=cmd, cwd=path_name)
+
             gerrit_client.flush_cache()
+
     except Exception as e:
         log('Error creating project branch: %s' % str(e), ERROR)
         sys.exit(1)
