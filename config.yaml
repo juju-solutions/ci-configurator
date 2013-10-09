@@ -30,7 +30,7 @@ options:
         default: ''
         description: |
             Launchpad login name of user branching bzr repo (required for
-            private branhces).
+            private branches).
     ssh-privkey:
         type: string
         description: |
