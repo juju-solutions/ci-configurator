@@ -7,7 +7,7 @@ import sys
 import common
 
 from charmhelpers.core.hookenv import (
-    log, relation_ids, relation_get, related_units, WARNING, ERROR)
+    log, relation_ids, relation_get, related_units, WARNING, ERROR, INFO)
 from charmhelpers.canonical_ci.gerrit import (
     GerritClient, start_gerrit, stop_gerrit)
 
@@ -21,6 +21,8 @@ GROUPS_CONFIG_FILE = os.path.join(GERRIT_CONFIG_DIR, 'permissions/groups.yml')
 GERRIT_USER = "gerrit2"
 SSH_PORT = 29418
 GIT_PATH = '/srv/git'
+WAR_PATH = '/home/gerrit2/gerrit-wars/gerrit.war'
+SITE_PATH = '/home/gerrit2/review_site'
 
 
 def update_theme(theme_dest, static_dest):
@@ -70,18 +72,10 @@ def update_hooks(hooks_dest, settings):
 
 
 def update_permissions(admin_username, admin_email, admin_privkey):
-    # TODO (yolanda.robla)
-    # These installation destinations needs to come from principle via relation
-    git_permissions_dest = '/srv/git/All-Projects.git'
-
     if not os.path.isdir(PERMISSIONS_DIR):
         log('Gerrit permissions directory not found @ %s, skipping '
             'permissions refresh.' % PERMISSIONS_DIR, level=WARNING)
         return False
-
-    if not os.path.isdir(git_permissions_dest):
-        log('Target permissions directory @ %s, is still not ready, '
-            'please retry.' % git_permissions_dest, level=WARNING)
 
     # parse groups file and create groups
     gerrit_client = GerritClient(
@@ -101,31 +95,48 @@ def update_permissions(admin_username, admin_email, admin_privkey):
     try:
         tmppath = tempfile.mkdtemp('', 'gerritperms')
         if tmppath:
-            os.chdir(tmppath)
-            cmd = (
-                "export HOME='/srv/git' && "
-                "git config --global user.email %s && "
-                "git config --global user.name %s && "
-                "git init && git remote add repo %s && "
-                "git fetch repo "
-                "refs/meta/config:refs/remotes/origin/meta/config "
-                "&& git checkout meta/config" %
-                (admin_username, admin_email, git_permissions_dest)
-            )
-            subprocess.check_call(cmd, shell=True)
+            subprocess.check_call(
+                ["chown", GERRIT_USER+":"+GERRIT_USER, tmppath])
+            os.chmod(tmppath, 0774)
 
-            # copy files to temp dir, then commit and push
+            cmds = [
+                ['git', 'init'],
+                ['git', 'remote', 'add', 'repo', 'ssh://%s@localhost:%s/All-Projects.git' % (admin_username, SSH_PORT)],
+                ['git', 'fetch', 'repo', 'refs/meta/config:refs/remotes/origin/meta/config'],
+                ['git', 'checkout', 'meta/config']
+            ]
+            for cmd in cmds:
+                common.run_as_user(user=GERRIT_USER, cmd=cmd,
+                    cwd=tmppath)
+
             common.sync_dir(PERMISSIONS_DIR+'/All-Projects', tmppath)
+            os.chdir(tmppath)
+            # generate groups file
+            query = 'SELECT name, group_uuid FROM account_groups'
+            cmd = ['java', '-jar', WAR_PATH, 'gsql', '-d', SITE_PATH, '-c', query]
+            result = subprocess.check_output(cmd)
+            if result:
+                # parse file and generate groups
+                output = result.splitlines()
+                with open('groups','w') as f:
+                    for item in output[2:]:
+                        # split between name and id
+                        data = item.split('|')
+                        if len(data)==2:
+                            f.write('%s\t%s\n' % (data[1].strip(), data[0].strip()))
 
-            cmd = (
-                "export HOME='/srv/git' && "
-                "git config --global user.name %s && "
-                "git config --global user.email %s && "
-                "git commit -a -m 'Initial permissions' && "
-                "git push repo meta/config:meta/config" %
-                (admin_username, admin_email)
-            )
-            subprocess.check_call(cmd, shell=True)
+                cmds = [
+                    ['git', 'config', '--global', 'user.name', admin_username],
+                    ['git', 'config', '--global', 'user.email', admin_email],
+                    ['git', 'commit', '-a', '-m', '"Initial permissions"'],
+                    ['git', 'push', 'repo', 'meta/config:meta/config']
+                ]
+                for cmd in cmds:
+                    common.run_as_user(user=GERRIT_USER, cmd=cmd,
+                        cwd=tmppath)
+            else:
+                log('Error querying for groups', level=ERROR)
+                return False
         else:
             log('Error creating permissions temporary directory', level=ERROR)
             return False
@@ -176,7 +187,7 @@ def create_projects(admin_username, admin_privkey, base_url,
                     common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=path_name)
                 except Exception:
                     # branch does not exist, create it
-                    ref = 'HEAD:refs/heads/%s' % 'gerrit/'+branch
+                    ref = 'HEAD:refs/heads/%s' % branch
                     cmds = [
                         ['git', 'checkout', branch],
                         ['git', 'pull'],
