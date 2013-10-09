@@ -190,7 +190,9 @@ def update_jenkins():
     # TODO: Call 'jenkins-job test' to validate configs before updating?
     log('Updating jobs in jenkins.')
     cmd = ['jenkins-jobs', '--flush-cache', 'update', JOBS_CONFIG_DIR]
-    subprocess.check_call(cmd)
+    # Run as the CI_USER so the cache will be primed with the correct
+    # permissions (rather than root:root).
+    common.run_as_user(cmd=cmd, user=common.CI_USER)
 
 
 def required_packages():

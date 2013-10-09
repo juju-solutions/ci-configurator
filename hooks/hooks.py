@@ -9,6 +9,7 @@ import zuul
 
 import common
 
+from charmhelpers.canonical_ci import cron
 from charmhelpers.core.hookenv import (
     charm_dir,
     config,
@@ -53,6 +54,11 @@ def config_changed():
         have_repo = True
         common.update_configs_from_repo(
             conf_repo, config('config-repo-revision'))
+        if config('schedule-updates'):
+            schedule = config('update-frequency')
+            cron.schedule_repo_updates(
+                schedule, common.CI_USER, common.CI_CONFIG_DIR,
+                jjb.JOBS_CONFIG_DIR)
 
     if have_repo:
         gerrit.update_gerrit()
