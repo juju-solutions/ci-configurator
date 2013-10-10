@@ -91,11 +91,13 @@ for group, teams in groups_config.items():
         print "Skipping group creation"
 
     # grab all the users in that teams
-    if not isinstance(teams, list):
-        teams = [teams]
+    teams = teams.split(' ')
+
+    final_users = []
     for team_todo in teams:
         team = launchpad.people[team_todo]
         details = team.members_details
+        print "Creating users for team %s" % team
         for detail in details:
             user = None
             # detail.self_link ==
@@ -109,7 +111,7 @@ for group, teams in groups_config.items():
                 (not member.is_team):
                 openid = get_openid(login)
 
-                full_name = member.display_name
+                full_name = member.display_name.encode('ascii', 'replace')
 
                 email = None
                 try:
@@ -124,13 +126,16 @@ for group, teams in groups_config.items():
                 ssh_keys = [k.strip() for k in ssh_keys]
 
                 # add user into gerrit for that group
-                try:
-                    print "Creating user %s in group %s" % (login,group)
-                    gerrit_client.create_user(user=login, name=full_name, 
-                        group=group, ssh_key=ssh_keys)
-                    need_reboot = True
-                except:
-                    print "Skip user creation"
-                
+                final_user = [login, full_name, ssh_keys]
+                final_users.append(final_user)
+                need_reboot = True
+    
+    # add all the users
+    try:
+        gerrit_client.create_users_batch(group, final_users)
+    except Exception as e:
+        print "ERROR creating users %s" % str(e)
+        sys.exit(1)
+            
 if need_reboot:
     gerrit_client.flush_cache()

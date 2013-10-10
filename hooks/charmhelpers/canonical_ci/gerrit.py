@@ -44,7 +44,6 @@ class GerritClient(object):
         self.ssh = get_ssh(host, user, port, key_file)
 
     def _run_cmd(self, cmd):
-        log('Executing gerrit command: %s' % cmd)
         stdin, stdout, stderr = self.ssh.exec_command(cmd)
         return (stdout.read(), stderr.read())
 
@@ -83,6 +82,38 @@ class GerritClient(object):
         # reboot gerrit to refresh accounts
         stop_gerrit()
         start_gerrit()
+
+    def create_users_batch(self, group, users):
+        for user in users:
+            # sets container user, name, ssh
+            login = user[0]
+            name = user[1]
+            ssh = user[2]
+
+            cmd = ('gerrit create-account %s --full-name "%s" '
+               '--group "%s" --ssh-key "%s"' % 
+               (login, name, group, ssh))
+            stdout, stderr = self._run_cmd(cmd)
+
+            if stderr.startswith('fatal'):
+                if 'already exists' in stderr:
+                    # account can exist, we just need to update it
+                    cmd = ('gerrit set-account %s --full-name "%s" ' %
+                           (login, name))
+                    stdout, stderr = self._run_cmd(cmd)
+
+                    # remove old keys and add new
+                    cmd = ('gerrit set-account %s --delete-ssh-key ALL' %
+                           login)
+                    stdout, stderr = self._run_cmd(cmd)
+                    cmd = ('gerrit set-account %s --add-ssh-key %s' %
+                           (login, ssh))
+                    stdout, stderr = self._run_cmd(cmd)
+                else:
+                    # different error
+                    sys.exit(1)
+        sys.exit(0)
+
 
     def create_project(self, project):
         log('Creating gerrit project %s' % project)
