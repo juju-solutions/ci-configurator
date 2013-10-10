@@ -126,9 +126,10 @@ for group, teams in groups_config.items():
                 ssh_keys = [k.strip() for k in ssh_keys]
 
                 # add user into gerrit for that group
-                final_user = [login, full_name, ssh_keys]
-                final_users.append(final_user)
-                need_reboot = True
+                if len(ssh_keys)>0:
+                    final_user = [login, full_name, ssh_keys[0]]
+                    final_users.append(final_user)
+                    need_reboot = True
     
     # add all the users
     try:
