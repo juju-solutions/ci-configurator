@@ -3,13 +3,16 @@ import subprocess
 import tempfile
 import yaml
 import sys
+from base64 import b64decode
 
 import common
 
 from charmhelpers.core.hookenv import (
-    log, relation_ids, relation_get, related_units, WARNING, ERROR)
+    log, relation_ids, relation_get, related_units, config,
+    WARNING, ERROR)
 from charmhelpers.canonical_ci.gerrit import (
     GerritClient, start_gerrit, stop_gerrit)
+from charmhelpers.canonical_ci import (cron)
 
 GERRIT_INIT_SCRIPT = '/etc/init.d/gerrit'
 GERRIT_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'gerrit')
@@ -23,6 +26,7 @@ SSH_PORT = 29418
 GIT_PATH = '/srv/git'
 WAR_PATH = '/home/gerrit2/gerrit-wars/gerrit.war'
 SITE_PATH = '/home/gerrit2/review_site'
+LAUNCHPAD_DIR = '/home/gerrit2/.launchpadlib'
 
 
 def update_theme(theme_dest, static_dest):
@@ -77,16 +81,37 @@ def update_permissions(admin_username, admin_email, admin_privkey):
             'permissions refresh.' % PERMISSIONS_DIR, level=WARNING)
         return False
 
+    # create launchpad directory and setup permissions
+    if not os.path.isdir(LAUNCHPAD_DIR):
+        os.mkdir(LAUNCHPAD_DIR)
+        cmd = ['chown', GERRIT_USER+':'+GERRIT_USER, LAUNCHPAD_DIR]
+        subprocess.check_call(cmd)
+        os.chmod(LAUNCHPAD_DIR, 0774)
+
+    # check if we have creds, push to dir
+    if config('gerrit-lp-creds'):
+        creds = b64decode(config('gerrit-lp-creds'))
+        with open(LAUNCHPAD_DIR+'/creds', 'w') as f:
+            f.write(creds)
+
+    # if we have teams and schedule, update cronjob
+    if config('lp-teams') and config('lp-schedule'):
+        command = os.path.join(os.environ['CHARM_DIR'], 'scripts', 
+            'query_lp_members.py')+' '+admin_username+' '+
+            admin_privkey
+        cron.schedule_generic_job(config('lp-schedule'),
+            '', 'launchpad_sync', command)
+
     # parse groups file and create groups
     gerrit_client = GerritClient(
         host='localhost',
         user=admin_username, port=SSH_PORT,
         key_file=admin_privkey)
 
-    config = {}
+    groups_config = {}
     with open(GROUPS_CONFIG_FILE, 'r') as f:
-        config = yaml.load(f)
-    for group, teams in config.items():
+        groups_config = yaml.load(f)
+    for group, teams in groups_config.items():
         # create group
         gerrit_client.create_group(group)
 
