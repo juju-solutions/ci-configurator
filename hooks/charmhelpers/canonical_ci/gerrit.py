@@ -3,6 +3,7 @@ import os
 import paramiko
 import sys
 import subprocess
+import json
 
 from charmhelpers.core.hookenv import (
     log as _log,
@@ -165,7 +166,6 @@ class GerritClient(object):
                        '(%s, \'%s\', \'%s\')"' % (account_id, email, openid))
                 stdout, stderr = self._run_cmd(cmd)
 
-        sys.exit(0)
 
     def create_project(self, project):
         log('Creating gerrit project %s' % project)

@@ -26,6 +26,7 @@ SSH_PORT = 29418
 GIT_PATH = '/srv/git'
 WAR_PATH = '/home/gerrit2/gerrit-wars/gerrit.war'
 SITE_PATH = '/home/gerrit2/review_site'
+LOGS_PATH = SITE_PATH+'/logs'
 LAUNCHPAD_DIR = '/home/gerrit2/.launchpadlib'
 
 
@@ -96,10 +97,11 @@ def update_permissions(admin_username, admin_email, admin_privkey):
 
     # if we have teams and schedule, update cronjob
     if config('lp-schedule'):
-        command = '%s %s %s' % (os.path.join(os.environ['CHARM_DIR'], 'scripts', 
-            'query_lp_members.py'), admin_username, admin_privkey)
+        command = '%s %s %s >> %s 2>&1' % (os.path.join(os.environ['CHARM_DIR'], 'scripts', 
+            'query_lp_members.py'), admin_username, admin_privkey,
+            LOGS_PATH+'/launchpad_sync.log\n')
         cron.schedule_generic_job(config('lp-schedule'),
-            '', 'launchpad_sync', command)
+            'root', 'launchpad_sync', command)
 
     # parse groups file and create groups
     gerrit_client = GerritClient(
