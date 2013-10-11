@@ -56,16 +56,11 @@ options:
         type: string
         default: ''
         description: Used to force config-changed hook runs.
-    gerrit-lp-creds:
+    lp-credentials-file:
         type: string
         default: ''
         description: |
             Credentials for login into Launchpad to retrieve team membership.
-    lp-teams:
-        type: string
-        default: ''
-        description: |
-            List of teams to be synced from Launchpad
     lp-schedule:
         type: string
         default: "*/15 * * * *"

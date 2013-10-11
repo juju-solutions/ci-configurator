@@ -16,7 +16,6 @@
 # Synchronize Gerrit users from Launchpad.
 
 import os
-import json
 import sys
 import yaml
 
@@ -26,21 +25,17 @@ from launchpadlib.uris import LPNET_SERVICE_ROOT
 from openid.consumer import consumer
 from openid.cryptutil import randomString
 sys.path.append(os.path.abspath(os.path.dirname(__file__) + '/' + '../hooks'))
-import common
-from charmhelpers.canonical_ci.gerrit import GerritClient
 
-GERRIT_CACHE_DIR = '/home/gerrit2/.launchpadlib/cache'
-GERRIT_CREDENTIALS = '/home/gerrit2/.launchpadlib/creds'
-GERRIT_USER_OUTPUT = '/home/gerrit2/.launchpadlib/users'
+from gerrit import *
 
-GERRIT_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'gerrit')
-GROUPS_CONFIG_FILE = os.path.join(GERRIT_CONFIG_DIR, 'permissions/groups.yml')
-SSH_PORT = 29418
+GERRIT_CACHE_DIR = LAUNCHPAD_DIR+'/cache'
+GERRIT_CREDENTIALS = LAUNCHPAD_DIR+'/creds'
 
 # check parameters from command line
 if len(sys.argv)<3:
     print "ERROR: Please send user and private key in parameters."
     sys.exit(1)
+
 admin_username = sys.argv[1]
 admin_privkey = sys.argv[2]
 
@@ -126,10 +121,9 @@ for group, teams in groups_config.items():
                 ssh_keys = [k.strip() for k in ssh_keys]
 
                 # add user into gerrit for that group
-                if len(ssh_keys)>0:
-                    final_user = [login, full_name, ssh_keys[0]]
-                    final_users.append(final_user)
-                    need_reboot = True
+                final_user = [login, full_name, email, ssh_keys, openid]
+                final_users.append(final_user)
+                need_reboot = True
     
     # add all the users
     try:
@@ -140,3 +134,5 @@ for group, teams in groups_config.items():
             
 if need_reboot:
     gerrit_client.flush_cache()
+    stop_gerrit()
+    start_gerrit()

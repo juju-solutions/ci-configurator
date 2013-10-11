@@ -1,11 +1,28 @@
+import logging
+import os
 import paramiko
 import sys
 import subprocess
 
-from charmhelpers.core.hookenv import log, ERROR
+from charmhelpers.core.hookenv import (
+    log as _log,
+    ERROR,
+)
 
 _connection = None
 GERRIT_DAEMON = "/etc/init.d/gerrit"
+
+logging.basicConfig(level=logging.INFO)
+
+
+def log(msg, level=None):
+    # wrap log calls and distribute to correct logger
+    # depending if this code is being run by a hook
+    # or an external script.
+    if os.getenv('JUJU_AGENT_SOCKET'):
+        _log(msg, level=level)
+    else:
+        logging.info(msg)
 
 
 def get_ssh(host, user, port, key_file):
@@ -19,6 +36,7 @@ def get_ssh(host, user, port, key_file):
 
     return _connection
 
+
 # start gerrit application
 def start_gerrit():
     try:
@@ -26,12 +44,14 @@ def start_gerrit():
     except:
         pass
 
+
 # stop gerrit application
 def stop_gerrit():
     try:
         subprocess.check_call([GERRIT_DAEMON, "stop"])
     except:
         pass
+
 
 class GerritException(Exception):
     def __init__(self, msg):
@@ -85,35 +105,67 @@ class GerritClient(object):
 
     def create_users_batch(self, group, users):
         for user in users:
-            # sets container user, name, ssh
+            # sets container user, name, ssh, openid
             login = user[0]
             name = user[1]
-            ssh = user[2]
+            email = user[2]
+            ssh = user[3]
+            openid = user[4]
 
-            cmd = ('gerrit create-account %s --full-name "%s" '
-               '--group "%s" --ssh-key "%s"' % 
-               (login, name, group, ssh))
+            cmd = (u'gerrit create-account %s --full-name "%s" '
+                   u'--group "%s" --email "%s"' % 
+                   (login, name, group, email))
             stdout, stderr = self._run_cmd(cmd)
 
             if stderr.startswith('fatal'):
                 if 'already exists' in stderr:
                     # account can exist, we just need to update it
-                    cmd = ('gerrit set-account %s --full-name "%s" ' %
-                           (login, name))
-                    stdout, stderr = self._run_cmd(cmd)
-
-                    # remove old keys and add new
-                    cmd = ('gerrit set-account %s --delete-ssh-key ALL' %
-                           login)
-                    stdout, stderr = self._run_cmd(cmd)
-                    cmd = ('gerrit set-account %s --add-ssh-key %s' %
-                           (login, ssh))
+                    cmd = (u'gerrit set-account %s --full-name "%s" '
+                           u'--email "%s"' % (login, name, email))
                     stdout, stderr = self._run_cmd(cmd)
                 else:
                     # different error
                     sys.exit(1)
-        sys.exit(0)
 
+            # remove old keys and add new
+            cmd = ('gerrit set-account %s --delete-ssh-key ALL' %
+                   login)
+            stdout, stderr = self._run_cmd(cmd)
+            for ssh_key in ssh:
+                cmd = ('gerrit set-account %s --add-ssh-key %s' %
+                       (login, ssh))
+                stdout, stderr = self._run_cmd(cmd)
+
+            # retrieve user id
+            account_id = None  
+            cmd = ('gerrit gsql --format json -c "SELECT account_id '
+                'FROM account_external_ids WHERE external_id=\'username:%s\'"'
+                % (login))
+            stdout, stderr = self._run_cmd(cmd)
+            if not stderr:
+                # load and decode json, extract account id
+                lines = stdout.splitlines()
+                if len(lines)>0:
+                    res = json.loads(lines[0])
+                    try:
+                        account_id = res['columns']['account_id']
+                    except:
+                        pass
+            if account_id:
+                # replace external id
+                cmd = ('gerrit gsql -c "DELETE FROM account_external_ids '
+                       'WHERE account_id=%s AND external_id LIKE \'http%%\'"'
+                       % account_id)
+                stdout, stderr = self._run_cmd(cmd)
+
+                # replace launchpad for ubuntu account
+                openid = openid.replace('login.launchpad.net', 'login.ubuntu.com')
+                cmd = ('gerrit gsql -c "INSERT INTO account_external_ids '
+                       '(account_id, email_address, external_id) VALUES '
+                       '(%s, \'%s\', \'%s\')"' % (account_id, email, openid))
+                stdout, stderr = self._run_cmd(cmd)
+
+        sys.exit(0)
 
     def create_project(self, project):
         log('Creating gerrit project %s' % project)
@@ -123,7 +175,8 @@ class GerritClient(object):
             log('Created new project %s.' % project)
             return True
         else:
-            log('Error creating project %s, skipping project creation' % project)
+            log('Error creating project %s, skipping project creation' %
+                project)
             return False
 
     def create_group(self, group):

@@ -89,13 +89,13 @@ def update_permissions(admin_username, admin_email, admin_privkey):
         os.chmod(LAUNCHPAD_DIR, 0774)
 
     # check if we have creds, push to dir
-    if config('gerrit-lp-creds'):
-        creds = b64decode(config('gerrit-lp-creds'))
+    if config('lp-credentials-file'):
+        creds = b64decode(config('lp-credentials-file'))
         with open(LAUNCHPAD_DIR+'/creds', 'w') as f:
             f.write(creds)
 
     # if we have teams and schedule, update cronjob
-    if config('lp-teams') and config('lp-schedule'):
+    if config('lp-schedule'):
         command = '%s %s %s' % (os.path.join(os.environ['CHARM_DIR'], 'scripts', 
             'query_lp_members.py'), admin_username, admin_privkey)
         cron.schedule_generic_job(config('lp-schedule'),
