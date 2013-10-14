@@ -77,7 +77,7 @@ is added, configuration of that service is skipped:
     $ tree -L 1.
     |--control.yml
     +-- gerrit
-    +-- jenkins_jobs
+    +-- jenkins
     +-- zuul
 
 The control.yml file is currently used to specify additional package
@@ -155,15 +155,18 @@ jobs and update jenkins server configuration:
     https://github.com/openstack-infra/jenkins-job-builder
 
 The repository should contain jenkins-job-builder compatable yaml job
-templates in jenkins_jobs/ subdirectory.  It should also contain a
+templates in jenkins/jobs/ subdirectory.  It should also contain a
 executable script named 'update' which is used by the charm for injecting
 any relevant environment data into the yaml templates where required:
 
-    jenkins_jobs/
-    |-- job_templates.yml
-    |-- macros.yml
-    |-- projects.yml
-    |-- update
+    jenkins/
+    |-- jobs/
+    |---- job_templates.yml
+    |---- macros.yml
+    |---- projects.yml
+    |---- update
+    |-- security/
+    |---- config.xml
 
 Its currently up to the repository's update script to decide how it wants
 to inject data into the jenkins-job-builder configs.  Prior to calling this

@@ -3,19 +3,28 @@ import os
 import shutil
 import subprocess
 import sys
+import yaml
 
 import common
 
 from charmhelpers.core.hookenv import (
-    charm_dir, config, log, relation_ids, relation_get, related_units, ERROR)
+    charm_dir, config, log, relation_ids, relation_get, 
+    related_units, ERROR)
+from charmhelpers.canonical_ci.jenkins import (
+    start_jenkins, stop_jenkins)
 from charmhelpers.fetch import apt_install
 
 PACKAGES = ['git', 'python-pip']
 CONFIG_DIR = '/etc/jenkins_jobs'
 JJB_CONFIG = os.path.join(CONFIG_DIR, 'jenkins_jobs.ini')
 
-JOBS_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'jenkins_jobs')
+JENKINS_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'jenkins')
+JOBS_CONFIG_DIR = os.path.join(JENKINS_CONFIG_DIR, 'jobs')
 CHARM_CONTEXT_DUMP = os.path.join(common.CI_CONFIG_DIR, 'charm_context.json')
+
+JENKINS_SECURITY_FILE = os.path.join(JENKINS_CONFIG_DIR, 'security', 'config.xml')
+GROUPS_CONFIG_FILE = os.path.join(JENKINS_CONFIG_DIR, 'security', 'groups.yml')
+JENKINS_CONFIG_FILE = '/var/lib/jenkins/config.xml'
 
 # locaiton of various assets Makefile target creates.
 TARBALL = 'jenkins-job-builder.tar.gz'
@@ -93,7 +102,7 @@ def install_from_git(repo):
     subprocess.check_call(cmd)
 
 
-def write_jjb_config():
+def write_jjb_config(username):
     log('*** Writing jenkins-job-builder config: %s.' % JJB_CONFIG)
 
     jenkins = {}
@@ -101,8 +110,8 @@ def write_jjb_config():
         for unit in related_units(rid):
             jenkins = {
                 'jenkins_url': relation_get('jenkins_url', rid=rid, unit=unit),
-                'username': relation_get('admin_username', rid=rid, unit=unit),
-                'password': relation_get('admin_password', rid=rid, unit=unit),
+                'username': username,
+                'password': 'pass',
             }
 
             if (None not in jenkins.itervalues() and
@@ -150,11 +159,27 @@ def save_context(outfile=CHARM_CONTEXT_DUMP):
 def update_jenkins():
     if not relation_ids('jenkins-configurator'):
         return
-
     log("*** Updating jenkins.")
-    if not write_jjb_config():
+
+    # grab user admin from config
+    with open(GROUPS_CONFIG_FILE, 'r') as f:
+        groups_config = yaml.load(f)
+    admin_user = groups_config['admin']
+
+    if not write_jjb_config(admin_user):
         # not enough in relation state to write config, skip update for now.
         return
+
+    if not os.path.isfile(JENKINS_SECURITY_FILE):
+        log('Could not find config.xml at expected location, skipping '
+            'jenkins security update (%s)' % JENINS_SECURITY_FILE, ERROR)
+        return
+
+    # copy file to jenkins home path
+    shutil.copy(JENKINS_SECURITY_FILE, JENKINS_CONFIG_FILE)
+    cmd = [ 'chown', 'jenkins:nogroup', JENKINS_CONFIG_FILE ]
+    subprocess.check_call(cmd)
+    os.chmod(JENKINS_CONFIG_FILE, 0644)
 
     if not os.path.isdir(JOBS_CONFIG_DIR):
         log('Could not find jobs-config directory at expected location, '
@@ -193,6 +218,10 @@ def update_jenkins():
     # Run as the CI_USER so the cache will be primed with the correct
     # permissions (rather than root:root).
     common.run_as_user(cmd=cmd, user=common.CI_USER)
+
+    # reboot
+    stop_jenkins()
+    start_jenkins()
 
 
 def required_packages():
