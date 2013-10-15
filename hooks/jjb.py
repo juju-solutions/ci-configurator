@@ -23,7 +23,6 @@ JOBS_CONFIG_DIR = os.path.join(JENKINS_CONFIG_DIR, 'jobs')
 CHARM_CONTEXT_DUMP = os.path.join(common.CI_CONFIG_DIR, 'charm_context.json')
 
 JENKINS_SECURITY_FILE = os.path.join(JENKINS_CONFIG_DIR, 'security', 'config.xml')
-GROUPS_CONFIG_FILE = os.path.join(JENKINS_CONFIG_DIR, 'security', 'groups.yml')
 JENKINS_CONFIG_FILE = '/var/lib/jenkins/config.xml'
 
 # locaiton of various assets Makefile target creates.
@@ -102,7 +101,7 @@ def install_from_git(repo):
     subprocess.check_call(cmd)
 
 
-def write_jjb_config(username):
+def write_jjb_config(username, token):
     log('*** Writing jenkins-job-builder config: %s.' % JJB_CONFIG)
 
     jenkins = {}
@@ -111,7 +110,7 @@ def write_jjb_config(username):
             jenkins = {
                 'jenkins_url': relation_get('jenkins_url', rid=rid, unit=unit),
                 'username': username,
-                'password': 'pass',
+                'password': token,
             }
 
             if (None not in jenkins.itervalues() and
@@ -161,13 +160,14 @@ def update_jenkins():
         return
     log("*** Updating jenkins.")
 
-    # grab user admin from config
-    with open(GROUPS_CONFIG_FILE, 'r') as f:
-        groups_config = yaml.load(f)
-    admin_user = groups_config['admin']
-
-    if not write_jjb_config(admin_user):
-        # not enough in relation state to write config, skip update for now.
+    # check if we have jenkins-admin-user and jenkins-token vars
+    if config('jenkins-admin-user') and config('jenkins-token'):
+        if not write_jjb_config(config('jenkins-admin-user'), config('jenkins-token')):
+            log('Jenkins authentication vars still not set, skipping jobs update', ERROR)
+            return
+    else:
+        # error, vars not set
+        log('Jenkins authentication vars still not set, skipping jobs update', ERROR)
         return
 
     if not os.path.isfile(JENKINS_SECURITY_FILE):
