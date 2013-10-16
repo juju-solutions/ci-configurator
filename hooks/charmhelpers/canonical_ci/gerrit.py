@@ -78,27 +78,38 @@ class GerritClient(object):
             log('Created new gerrit user %s in group %s.' % (user, group))
 
         if stderr.startswith('fatal'):
-            if 'already exists' in stderr:
-                # account can exist, we just need to update it
-                log('Gerrit user %s already exists in group %s, updating it.' %
-                    (user, group))
-
-                # update name
-                cmd = ('gerrit set-account %(user)s --full-name "%s(name)s" ' %
-                       locals())
-                stdout, stderr = self._run_cmd(cmd)
-
-                # remove old keys and add new
-                cmd = ('gerrit set-account %(user)s --delete-ssh-key ALL ' %
-                       locals())
-                stdout, stderr = self._run_cmd(cmd)
-                cmd = ('gerrit set-account %(user)s --add-ssh-key '
-                       '"%s(ssh_key)s" ' % locals())
-                stdout, stderr = self._run_cmd(cmd)
-            else:
+            if 'already exists' not in stderr:
                 # different error
                 log('Error creating account', ERROR)
                 sys.exit(1)
+            else:
+                # retrieve user id and update keys
+                account_id = None  
+                cmd = ('gerrit gsql --format json -c "SELECT account_id '
+                    'FROM account_external_ids WHERE external_id=\'username:%s\'"'
+                    % (user))
+                stdout, stderr = self._run_cmd(cmd)
+                if not stderr:
+                    # load and decode json, extract account id
+                    lines = stdout.splitlines()
+                    if len(lines)>0:
+                        res = json.loads(lines[0])
+                        try:
+                            account_id = res['columns']['account_id']
+                        except:
+                            pass
+
+                # if found, update ssh keys
+                if account_id:
+                    cmd = ('gerrit gsql -c "DELETE FROM account_ssh_keys '
+                           'WHERE account_id=%s' % account_id)
+                    stdout, stderr = self._run_cmd(cmd)
+
+                    # insert new key
+                    cmd = ('gerrit gsql -c "INSERT INTO account_ssh_keys '
+                        '(ssh_public_key, valid, account_id, seq) VALUES (\'%s\', \'Y\', '
+                        '\'%s\', 0)" ' % (ssh_key, account_id))
+                    stdout, stderr = self._run_cmd(cmd)
 
         # reboot gerrit to refresh accounts
         stop_gerrit()
@@ -119,23 +130,8 @@ class GerritClient(object):
             stdout, stderr = self._run_cmd(cmd)
 
             if stderr.startswith('fatal'):
-                if 'already exists' in stderr:
-                    # account can exist, we just need to update it
-                    cmd = (u'gerrit set-account %s --full-name "%s" '
-                           u'--email "%s"' % (login, name, email))
-                    stdout, stderr = self._run_cmd(cmd)
-                else:
-                    # different error
+                if 'already exists' not in stderr:
                     sys.exit(1)
-
-            # remove old keys and add new
-            cmd = ('gerrit set-account %s --delete-ssh-key ALL' %
-                   login)
-            stdout, stderr = self._run_cmd(cmd)
-            for ssh_key in ssh:
-                cmd = ('gerrit set-account %s --add-ssh-key %s' %
-                       (login, ssh))
-                stdout, stderr = self._run_cmd(cmd)
 
             # retrieve user id
             account_id = None  
@@ -152,7 +148,23 @@ class GerritClient(object):
                         account_id = res['columns']['account_id']
                     except:
                         pass
+
+            # if found, update ssh keys and openid
             if account_id:
+                # remove old keys and add new
+                cmd = ('gerrit gsql -c "DELETE FROM account_ssh_keys '
+                       'WHERE account_id=%s' % account_id)
+                stdout, stderr = self._run_cmd(cmd)
+
+                num_key = 0
+                for ssh_key in ssh:
+                    # insert new keys
+                    cmd = ('gerrit gsql -c "INSERT INTO account_ssh_keys '
+                        '(ssh_public_key, valid, account_id, seq) VALUES (\'%s\', \'Y\', \'%s\', '
+                        '\'%s\')" ' % (ssh_key, account_id, num_key))
+                    num_key+=1
+                    stdout, stderr = self._run_cmd(cmd)
+
                 # replace external id
                 cmd = ('gerrit gsql -c "DELETE FROM account_external_ids '
                        'WHERE account_id=%s AND external_id LIKE \'http%%\'"'

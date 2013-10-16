@@ -17,7 +17,7 @@ def write_cronjob(content, job_name=''):
 
 
 # generic backup job creation
-def schedule_backup(sources, target, schedule, retention_count):
+def schedule_backup(sources, ci_user, target, schedule, retention_count):
     log("Creating backup cronjob for sources: %s." % sources, INFO)
 
     # if doesn't exist, create backup directory and scripts directory
@@ -30,8 +30,8 @@ def schedule_backup(sources, target, schedule, retention_count):
     backup_string = ",".join(sources)
 
     # create the cronjob file that will call the script
-    content = ("%s %s %s %s %s\n" %
-               (schedule, script, backup_string, target, retention_count))
+    content = ("%s %s %s %s %s %s\n" %
+               (schedule, ci_user, script, backup_string, target, retention_count))
     write_cronjob(content)
 
 
