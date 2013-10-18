@@ -236,10 +236,14 @@ def update_jenkins_jobs():
     # call jenkins-jobs to actually update jenkins
     # TODO: Call 'jenkins-job test' to validate configs before updating?
     log('Updating jobs in jenkins.')
-    cmd = ['jenkins-jobs', '--flush-cache', 'update', JOBS_CONFIG_DIR]
-    # Run as the CI_USER so the cache will be primed with the correct
-    # permissions (rather than root:root).
-    common.run_as_user(cmd=cmd, user=common.CI_USER)
+    try:
+        cmd = ['jenkins-jobs', '--flush-cache', 'update', JOBS_CONFIG_DIR]
+        # Run as the CI_USER so the cache will be primed with the correct
+        # permissions (rather than root:root).
+        common.run_as_user(cmd=cmd, user=common.CI_USER)
+    except:
+        log('Error updating jobs, check jjb settings and retry', ERROR)
+
 
 
 def update_jenkins():
