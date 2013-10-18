@@ -22,6 +22,7 @@ CHARM_CONTEXT_DUMP = os.path.join(common.CI_CONFIG_DIR, 'charm_context.json')
 
 JENKINS_SECURITY_FILE = os.path.join(JENKINS_CONFIG_DIR,
                                      'security', 'config.xml')
+JENKINS_PATH = '/var/lib/jenkins'
 JENKINS_CONFIG_FILE = '/var/lib/jenkins/config.xml'
 
 # locaiton of various assets Makefile target creates.
@@ -244,8 +245,13 @@ def update_jenkins_jobs():
 def update_jenkins():
     if not relation_ids('jenkins-configurator'):
         return
-    log("*** Updating jenkins.")
 
+    # if jenkins lib does not exist, skip it
+    if not os.path.isdir(JENKINS_PATH):
+        log("*** Jenkins does not exist. Not in jenkins relation, skipping ***")
+        return
+
+    log("*** Updating jenkins.")
     update_jenkins_config()
     update_jenkins_jobs()
 
