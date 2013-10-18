@@ -2,13 +2,11 @@ import json
 import os
 import shutil
 import subprocess
-import sys
-import yaml
 
 import common
 
 from charmhelpers.core.hookenv import (
-    charm_dir, config, log, relation_ids, relation_get, 
+    charm_dir, config, log, relation_ids, relation_get,
     related_units, ERROR)
 from charmhelpers.canonical_ci.jenkins import (
     start_jenkins, stop_jenkins)
@@ -22,7 +20,8 @@ JENKINS_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'jenkins')
 JOBS_CONFIG_DIR = os.path.join(JENKINS_CONFIG_DIR, 'jobs')
 CHARM_CONTEXT_DUMP = os.path.join(common.CI_CONFIG_DIR, 'charm_context.json')
 
-JENKINS_SECURITY_FILE = os.path.join(JENKINS_CONFIG_DIR, 'security', 'config.xml')
+JENKINS_SECURITY_FILE = os.path.join(JENKINS_CONFIG_DIR,
+                                     'security', 'config.xml')
 JENKINS_CONFIG_FILE = '/var/lib/jenkins/config.xml'
 
 # locaiton of various assets Makefile target creates.
@@ -101,16 +100,16 @@ def install_from_git(repo):
     subprocess.check_call(cmd)
 
 
-def write_jjb_config(username, token):
+def write_jjb_config():
     log('*** Writing jenkins-job-builder config: %s.' % JJB_CONFIG)
-
     jenkins = {}
+    admin_user, admin_cred = admin_credentials()
     for rid in relation_ids('jenkins-configurator'):
         for unit in related_units(rid):
             jenkins = {
                 'jenkins_url': relation_get('jenkins_url', rid=rid, unit=unit),
-                'username': username,
-                'password': token,
+                'username': admin_user,
+                'password': admin_cred,
             }
 
             if (None not in jenkins.itervalues() and
@@ -155,32 +154,66 @@ def save_context(outfile=CHARM_CONTEXT_DUMP):
         out.write(json.dumps(ctxt))
 
 
-def update_jenkins():
-    if not relation_ids('jenkins-configurator'):
-        return
-    log("*** Updating jenkins.")
+def admin_credentials():
+    """fetches admin credentials either from charm config or remote jenkins
+    service"""
 
-    # check if we have jenkins-admin-user and jenkins-token vars
-    if config('jenkins-admin-user') and config('jenkins-token'):
-        if not write_jjb_config(config('jenkins-admin-user'), config('jenkins-token')):
-            log('Jenkins authentication vars still not set, skipping jobs update', ERROR)
-            return
-    else:
-        # error, vars not set
-        log('Jenkins authentication vars still not set, skipping jobs update', ERROR)
+    admin_user = config('jenkins-admin-user')
+    admin_cred = config('jenkins-token')
+    if (admin_user and admin_cred) and '' not in [admin_user, admin_cred]:
+        log('Configurating Jenkins credentials from charm configuration.')
+        return admin_user, admin_cred
+
+    for rid in relation_ids('jenkins-configurator'):
+        admin_user = None
+        admin_cred = None
+        for unit in related_units(rid):
+            admin_user = relation_get('admin_username', rid=rid, unit=unit)
+            admin_cred = relation_get('admin_password', rid=rid, unit=unit)
+            if (admin_user and admin_cred) and \
+               '' not in [admin_user, admin_cred]:
+                log('Configuring Jenkins credentials from Jenkins relation.')
+                return (admin_user, admin_cred)
+
+    return (None, None)
+
+
+def update_jenkins_config():
+    # NOTE (adam_g): This totally overwrites the entire Jenkins configuration
+    #                file, just to set security policy?  It would be preferred
+    #                if we can find a way to update config instead of
+    #                replacing.
+    # copy file to jenkins home path
+    if not os.path.isdir(JOBS_CONFIG_DIR):
+        log('Could not find jobs-config directory at expected location, '
+            'skipping jenkins-jobs update (%s)' % JOBS_CONFIG_DIR, ERROR)
         return
 
+    log('Updating jenkins config @ %s' % JENKINS_CONFIG_FILE)
     if not os.path.isfile(JENKINS_SECURITY_FILE):
-        log('Could not find config.xml at expected location, skipping '
-            'jenkins security update (%s)' % JENINS_SECURITY_FILE, ERROR)
+        log('Could not find jenkins config file @ %s, skipping.' %
+            JENKINS_SECURITY_FILE)
         return
 
     # copy file to jenkins home path
     shutil.copy(JENKINS_SECURITY_FILE, JENKINS_CONFIG_FILE)
-    cmd = [ 'chown', 'jenkins:nogroup', JENKINS_CONFIG_FILE ]
+    cmd = ['chown', 'jenkins:nogroup', JENKINS_CONFIG_FILE]
     subprocess.check_call(cmd)
     os.chmod(JENKINS_CONFIG_FILE, 0644)
 
+    # NOTE (adam_g): We do not want to restart jenkins unless we absolutely
+    #                need to.
+    #                TODO: md5 sum the config file before update and only
+    #                      restart jenkins if we need to.
+    stop_jenkins()
+    start_jenkins()
+
+
+def update_jenkins_jobs():
+    if not write_jjb_config():
+        log('Could not write jenkins-job-builder config, skipping '
+            'jobs update.')
+        return
     if not os.path.isdir(JOBS_CONFIG_DIR):
         log('Could not find jobs-config directory at expected location, '
             'skipping jenkins-jobs update (%s)' % JOBS_CONFIG_DIR, ERROR)
@@ -190,19 +223,7 @@ def update_jenkins():
     if not os.path.isfile(hook):
         log('Could not find jobs-config update hook at expected location: %s' %
             hook, ERROR)
-        sys.exit(1)
-
-    # run repo setup scripts.
-    setupd = os.path.join(common.CI_CONFIG_DIR, 'setup.d')
-    if os.path.isdir(setupd):
-        cmd = ["run-parts", setupd]
-        log('Running repo setup.')
-        subprocess.check_call(cmd)
-
-    # install any packages that the repo says we need as dependencies.
-    pkgs = required_packages()
-    if pkgs:
-        apt_install(pkgs, fatal=True)
+        return
 
     save_context()
     # inform hook where to find the context json dump
@@ -219,9 +240,26 @@ def update_jenkins():
     # permissions (rather than root:root).
     common.run_as_user(cmd=cmd, user=common.CI_USER)
 
-    # reboot
-    stop_jenkins()
-    start_jenkins()
+
+def update_jenkins():
+    if not relation_ids('jenkins-configurator'):
+        return
+    log("*** Updating jenkins.")
+
+    update_jenkins_config()
+    update_jenkins_jobs()
+
+    # run repo setup scripts.
+    setupd = os.path.join(common.CI_CONFIG_DIR, 'setup.d')
+    if os.path.isdir(setupd):
+        cmd = ["run-parts", setupd]
+        log('Running repo setup.')
+        subprocess.check_call(cmd)
+
+    # install any packages that the repo says we need as dependencies.
+    pkgs = required_packages()
+    if pkgs:
+        apt_install(pkgs, fatal=True)
 
 
 def required_packages():
