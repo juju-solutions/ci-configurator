@@ -2,6 +2,8 @@ import json
 import os
 import shutil
 import subprocess
+import urllib2
+import time
 
 import common
 
@@ -11,6 +13,7 @@ from charmhelpers.core.hookenv import (
 from charmhelpers.canonical_ci.jenkins import (
     start_jenkins, stop_jenkins)
 from charmhelpers.fetch import apt_install
+from charmhelpers.core.host import restart_on_change
 
 PACKAGES = ['git', 'python-pip']
 CONFIG_DIR = '/etc/jenkins_jobs'
@@ -29,6 +32,8 @@ JENKINS_CONFIG_FILE = '/var/lib/jenkins/config.xml'
 TARBALL = 'jenkins-job-builder.tar.gz'
 LOCAL_PIP_DEPS = 'jenkins-job-builder_reqs'
 LOCAL_JOBS_CONFIG = 'job-configs'
+SLEEP_TIME = 30
+MAX_RETRIES = 10
 
 JJB_CONFIG_TEMPLATE = """
 [jenkins]
@@ -202,12 +207,8 @@ def update_jenkins_config():
     subprocess.check_call(cmd)
     os.chmod(JENKINS_CONFIG_FILE, 0644)
 
-    # NOTE (adam_g): We do not want to restart jenkins unless we absolutely
-    #                need to.
-    #                TODO: md5 sum the config file before update and only
-    #                      restart jenkins if we need to.
-    stop_jenkins()
-    start_jenkins()
+    # restart only if needed
+    restart_on_change({JENKINS_CONFIG_FILE: [ 'jenkins' ]})
 
 
 def update_jenkins_jobs():
@@ -236,14 +237,26 @@ def update_jenkins_jobs():
     # call jenkins-jobs to actually update jenkins
     # TODO: Call 'jenkins-job test' to validate configs before updating?
     log('Updating jobs in jenkins.')
-    try:
-        cmd = ['jenkins-jobs', '--flush-cache', 'update', JOBS_CONFIG_DIR]
-        # Run as the CI_USER so the cache will be primed with the correct
-        # permissions (rather than root:root).
-        common.run_as_user(cmd=cmd, user=common.CI_USER)
-    except:
-        log('Error updating jobs, check jjb settings and retry', ERROR)
 
+    # call jenkins-jobs update, wait for jenkins to be available if needed
+    # because it comes after a restart, so needs time
+    for attempt in range(MAX_RETRIES):
+        try:
+            cmd = ['jenkins-jobs', '--flush-cache', 'update', JOBS_CONFIG_DIR]
+            # Run as the CI_USER so the cache will be primed with the correct
+            # permissions (rather than root:root).
+            common.run_as_user(cmd=cmd, user=common.CI_USER)
+        except urllib2.HTTPError, err:
+            if err.code==503:
+                # sleep for a while, retry
+                time.sleep(SLEEP_TIME)
+                log('Jenkins is still not available, retrying')
+                continue
+            else:
+                log('Error updating jobs, check jjb settings and retry', ERROR)
+        except Exception as e:
+            log('Error updating jobs, check jjb settings and retry', ERROR)
+        break
 
 
 def update_jenkins():
