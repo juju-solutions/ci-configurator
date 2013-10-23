@@ -164,16 +164,16 @@ def admin_credentials():
     """fetches admin credentials either from charm config or remote jenkins
     service"""
 
-    admin_user = config('jenkins-admin-user')
-    admin_cred = config('jenkins-token')
-    if (admin_user and admin_cred) and '' not in [admin_user, admin_cred]:
-        log('Configurating Jenkins credentials from charm configuration.')
-        return admin_user, admin_cred
-
     for rid in relation_ids('jenkins-configurator'):
         admin_user = None
         admin_cred = None
         for unit in related_units(rid):
+            jenkins_admin_user = relation_get('jenkins-admin-user', rid=rid, unit=unit)
+            jenkins_token = relation_get('jenkins-token', rid=rid, unit=unit)
+            if (jenkins_admin_user and jenkins_token) and '' not in [jenkins_admin_user, jenkins_token]:
+                log('Configurating Jenkins credentials from charm configuration.')
+                return jenkins_admin_user, jenkins_token
+
             admin_user = relation_get('admin_username', rid=rid, unit=unit)
             admin_cred = relation_get('admin_password', rid=rid, unit=unit)
             if (admin_user and admin_cred) and \

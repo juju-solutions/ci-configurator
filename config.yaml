@@ -65,20 +65,4 @@ options:
         type: string
         default: "*/15 * * * *"
         description: |
-            Cron-formatted schedule for launchpad sync
-    jenkins-admin-user:
-        type: string
-        default: ""
-        description: |
-            Admin username to be used for Jenkins scripts.
-    jenkins-token:
-        type: string
-        default: ""
-        description: |
-            API token that belongs to admin username, to be 
-            used for Jenkins scripts. To set that, admin
-            username should login by SSO at least once, and 
-            retrieve the token found in user/xxx/configure.
-            Each time the API token is changed, it needs to 
-            be updated in this config option for the charm
-        
+            Cron-formatted schedule for launchpad sync        
