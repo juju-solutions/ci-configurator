@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import urllib2
 import time
+import xml.etree.ElementTree as ET
 
 import common
 
@@ -185,11 +186,6 @@ def admin_credentials():
 
 
 def update_jenkins_config():
-    # NOTE (adam_g): This totally overwrites the entire Jenkins configuration
-    #                file, just to set security policy?  It would be preferred
-    #                if we can find a way to update config instead of
-    #                replacing.
-    # copy file to jenkins home path
     if not os.path.isdir(JOBS_CONFIG_DIR):
         log('Could not find jobs-config directory at expected location, '
             'skipping jenkins-jobs update (%s)' % JOBS_CONFIG_DIR, ERROR)
@@ -201,8 +197,30 @@ def update_jenkins_config():
             JENKINS_SECURITY_FILE)
         return
 
-    # copy file to jenkins home path
-    shutil.copy(JENKINS_SECURITY_FILE, JENKINS_CONFIG_FILE)
+    # open existing config.xml and manipulate to enable
+    # our security rules, use parser to don't overwrite it
+    tree = ET.parse(JENKINS_CONFIG_FILE)
+    securityItem = tree.find('useSecurity')
+    if securityItem is not None:
+        securityItem.text='True'
+    else:
+        # create security item
+        root = tree.getroot()
+        parent = root.find(".")
+        securityItem = ET.SubElement(parent, 'useSecurity')
+        securityItem.text='True'
+
+    # now replace authorization strategy with our bits
+    root = tree.getroot()
+    auth = root.find('authorizationStrategy')
+    if auth is not None:
+        root.remove(auth)
+
+    # create our own tree with security bits
+    secElement = ET.parse(JENKINS_SECURITY_FILE)
+    root.append(secElement.getroot())
+
+    tree.write(JENKINS_CONFIG_FILE)
     cmd = ['chown', 'jenkins:nogroup', JENKINS_CONFIG_FILE]
     subprocess.check_call(cmd)
     os.chmod(JENKINS_CONFIG_FILE, 0644)
