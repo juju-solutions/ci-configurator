@@ -187,6 +187,9 @@ def admin_credentials():
     return (None, None)
 
 
+def is_jenkins_slave():
+    return os.path.isfile('/etc/init/jenkins-slave.conf')
+
 def update_jenkins_config():
     if not os.path.isdir(JOBS_CONFIG_DIR):
         log('Could not find jobs-config directory at expected location, '
@@ -291,8 +294,10 @@ def update_jenkins():
         return
 
     log("*** Updating jenkins.")
-    update_jenkins_config()
-    update_jenkins_jobs()
+    if not is_jenkins_slave():
+        log('Running on master, updating config and jobs.')
+        update_jenkins_config()
+        update_jenkins_jobs()
 
     # run repo setup scripts.
     setupd = os.path.join(common.CI_CONFIG_DIR, 'setup.d')
