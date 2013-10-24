@@ -11,8 +11,6 @@ import common
 from charmhelpers.core.hookenv import (
     charm_dir, config, log, relation_ids, relation_get,
     related_units, ERROR)
-from charmhelpers.canonical_ci.jenkins import (
-    start_jenkins, stop_jenkins)
 from charmhelpers.fetch import apt_install
 from charmhelpers.core.host import restart_on_change
 
@@ -169,10 +167,14 @@ def admin_credentials():
         admin_user = None
         admin_cred = None
         for unit in related_units(rid):
-            jenkins_admin_user = relation_get('jenkins-admin-user', rid=rid, unit=unit)
-            jenkins_token = relation_get('jenkins-token', rid=rid, unit=unit)
-            if (jenkins_admin_user and jenkins_token) and '' not in [jenkins_admin_user, jenkins_token]:
-                log('Configurating Jenkins credentials from charm configuration.')
+            jenkins_admin_user = relation_get('jenkins-admin-user',
+                                              rid=rid, unit=unit)
+            jenkins_token = relation_get('jenkins-token',
+                                         rid=rid, unit=unit)
+            if (jenkins_admin_user and jenkins_token) and '' not in \
+               [jenkins_admin_user, jenkins_token]:
+                log(('Configurating Jenkins credentials '
+                     'from charm configuration.'))
                 return jenkins_admin_user, jenkins_token
 
             admin_user = relation_get('admin_username', rid=rid, unit=unit)
@@ -202,13 +204,13 @@ def update_jenkins_config():
     tree = ET.parse(JENKINS_CONFIG_FILE)
     securityItem = tree.find('useSecurity')
     if securityItem is not None:
-        securityItem.text='True'
+        securityItem.text = 'True'
     else:
         # create security item
         root = tree.getroot()
         parent = root.find(".")
         securityItem = ET.SubElement(parent, 'useSecurity')
-        securityItem.text='True'
+        securityItem.text = 'True'
 
     # now replace authorization strategy with our bits
     root = tree.getroot()
@@ -226,7 +228,7 @@ def update_jenkins_config():
     os.chmod(JENKINS_CONFIG_FILE, 0644)
 
     # restart only if needed
-    restart_on_change({JENKINS_CONFIG_FILE: [ 'jenkins' ]})
+    restart_on_change({JENKINS_CONFIG_FILE: ['jenkins']})
 
 
 def update_jenkins_jobs():
@@ -265,7 +267,7 @@ def update_jenkins_jobs():
             # permissions (rather than root:root).
             common.run_as_user(cmd=cmd, user=common.CI_USER)
         except urllib2.HTTPError, err:
-            if err.code==503:
+            if err.code == 503:
                 # sleep for a while, retry
                 time.sleep(SLEEP_TIME)
                 log('Jenkins is still not available, retrying')
@@ -273,7 +275,8 @@ def update_jenkins_jobs():
             else:
                 log('Error updating jobs, check jjb settings and retry', ERROR)
         except Exception as e:
-            log('Error updating jobs, check jjb settings and retry', ERROR)
+            log('Error updating jobs, check jjb settings and retry: %s' %
+                str(e), ERROR)
         break
 
 
@@ -283,7 +286,8 @@ def update_jenkins():
 
     # if jenkins lib does not exist, skip it
     if not os.path.isdir(JENKINS_PATH):
-        log("*** Jenkins does not exist. Not in jenkins relation, skipping ***")
+        log(('*** Jenkins does not exist. Not in jenkins relation, '
+             'skipping ***'))
         return
 
     log("*** Updating jenkins.")
