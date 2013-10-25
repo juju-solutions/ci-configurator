@@ -97,7 +97,7 @@ def update_permissions(admin_username, admin_email, admin_privkey):
 
     # if we have teams and schedule, update cronjob
     if config('lp-schedule'):
-        command = ('%s %s %s >> %s 2>&1\n' %
+        command = ('%s %s %s >> %s 2>&1' %
                   (os.path.join(os.environ['CHARM_DIR'], 'scripts',
                    'query_lp_members.py'), admin_username, admin_privkey,
                    LOGS_PATH+'/launchpad_sync.log'))
