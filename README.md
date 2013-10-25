@@ -31,9 +31,10 @@ bzr repository.
     juju add-relation ci-configurator zuul
     juju add-relation ci-configurator gerrit
     juju add-relation ci-configurator jenkins
+    juju add-relation ci-configurator jenkins-slave
 
 Repository management, offline and online
-===========================
+=========================================
 
 This charm is intended to be deployed in environments that have outbound
 internet access.  Internet access is used for branching the configured
@@ -89,7 +90,7 @@ The layout of the per-service subdirectories and the integration with the charm
 is described below:
 
 gerrit/
-----
+------
 
 The ci-configurator charm knows how to manage gerrit hooks, permissions,
 projects and the gerrit theme.  Each bit is managed in its own subdirectory:
