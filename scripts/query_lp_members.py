@@ -108,11 +108,11 @@ for group, teams in groups_config.items():
 
                 full_name = member.display_name.encode('ascii', 'replace')
 
-                email = None
+                email = ''
                 try:
                     email = member.preferred_email_address.email
-                except ValueError:
-                    pass
+                except:
+                    email = login
 
                 ssh_keys = [
                     "%s %s %s" % (get_type(key.keytype), key.keytext, key.comment)
