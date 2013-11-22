@@ -27,12 +27,24 @@ proof: revision
 
 installdeps: clean
 	@mkdir -p $(SOURCEDEPS_DIR) $(FILES_DIR)
+ifeq ($(CI_CONFIGURATOR_SOURCEDEPS_BRANCH), '')
 	@mkdir -p $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs
 	@echo Updating source dependencies...
 	@$(GIT) clone $(JBB_GIT) $(SOURCEDEPS_DIR)/jenkins-job-builder
 	@cd $(SOURCEDEPS_DIR) && $(CP) $(SOURCEDEPS_DIR)/jenkins-job-builder/tools/pip-requires $(FILES_DIR)/
 	@cd $(SOURCEDEPS_DIR) && $(TAR) cfz $(FILES_DIR)/jenkins-job-builder.tar.gz jenkins-job-builder/
 	@pip install --download $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs/ -r $(FILES_DIR)/pip-requires && $(CP) -R $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs $(FILES_DIR)/jenkins-job-builder_reqs
+else
+	@echo Updating source dependencies from branch...
+	@mkdir -p $(SOURCEDEPS_DIR)
+	@$(RM) -rf $(SOURCEDEPS_DIR)/ci-configurator/*
+	@bzr branch $(CI_CONFIGURATOR_SOURCEDEPS_BRANCH) $(SOURCEDEPS_DIR)/ci-configurator
+
+	@$(CP) -R $(SOURCEDEPS_DIR)/ci-configurator/jenkins-job-builder/jenkins-job-builder_reqs $(FILES_DIR)/jenkins-job-builder_reqs
+	@$(CP) $(SOURCEDEPS_DIR)/ci-configurator/jenkins-job-builder/jenkins-job-builder.tar.gz $(FILES_DIR)/
+	@$(CP) $(SOURCEDEPS_DIR)/ci-configurator/jenkins-job-builder/pip-requires $(FILES_DIR)/pip-requires
+endif
+	
 
 configrepo:
 	@$(RM) -rf $(CONFIGS_DIR)
@@ -51,4 +63,3 @@ sync:
 
 
 .PHONY: revision proof installdeps
-
