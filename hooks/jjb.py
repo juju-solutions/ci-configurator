@@ -305,20 +305,3 @@ def update_jenkins():
         cmd = ["run-parts", setupd]
         log('Running repo setup.')
         subprocess.check_call(cmd)
-
-    # install any packages that the repo says we need as dependencies.
-    pkgs = required_packages()
-    if pkgs:
-        apt_install(pkgs, fatal=True)
-
-
-def required_packages():
-    control = common.load_control()
-    if control and 'required_jenkins_packages' in control:
-        return control['required_jenkins_packages']
-
-
-def required_plugins():
-    control = common.load_control()
-    if control and 'required_jenkins_plugins' in control:
-        return control['required_jenkins_plugins']

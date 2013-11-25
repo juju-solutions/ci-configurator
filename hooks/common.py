@@ -16,7 +16,6 @@ CONFIG_DIR = '/etc/ci-configurator'
 # ends up.  This is either a bzr repo of the remote source
 # or a copy of the repo shipped with charm, depending on config.
 CI_CONFIG_DIR = os.path.join(CONFIG_DIR, 'ci-config')
-CI_CONTROL_FILE = os.path.join(CI_CONFIG_DIR, 'control.yml')
 
 
 def update_configs_from_charm(bundled_configs):
@@ -62,15 +61,6 @@ def update_configs_from_repo(repo, revision=None):
         os.chdir(CI_CONFIG_DIR)
         log('Running bzr: %s' % cmds)
         [run_as_user(cmd=c, user=CI_USER, cwd=CI_CONFIG_DIR) for c in cmds]
-
-
-def load_control():
-    if not os.path.exists(CI_CONTROL_FILE):
-        log('No control.yml found in repo at @ %s.' % CI_CONTROL_FILE)
-        return None
-
-    with open(CI_CONTROL_FILE) as control:
-        return yaml.load(control)
 
 
 def sync_dir(src, dst):
