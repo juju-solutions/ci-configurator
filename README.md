@@ -76,9 +76,15 @@ each service the repository is managing.  If one is missing and a relation
 is added, configuration of that service is skipped:
 
     $ tree -L 1.
+    |--control.yml
     +-- gerrit
     +-- jenkins
     +-- zuul
+
+The control.yml file is currently used to specify additional package
+and plugin dependencies that are required to run the jenkins jobs configured
+in the repository (see jenkins section below), but the scope of this file may
+expand in the future to also specify dependencies for Zuul and Gerrit.
 
 The layout of the per-service subdirectories and the integration with the charm
 is described below:
@@ -120,6 +126,14 @@ theme and get installed to /home/gerrit2/review_site/etc/ and
 If the gerrit/ subdirectory is missing in repository, updating gerrit is
 skipped.  If any subdirectory of gerrit/ is missing in repository,
 configuration of that gerrit component is skipped.
+
+    required_jenkins_packages:
+        - git
+        - python-pip
+        - python-mock
+    required_jenkins_plugins:
+        - git-client
+        - git
 
 zuul
 ----
@@ -174,6 +188,22 @@ injects the zuul address into the various job configurations.
 
 After the update hook is called, the 'jenkins-jobs' script is called to
 actually create or update the jobs in the running jenkins cluster.
+
+It may also be required to install additional packages or Jenkins plugins
+in order to run the jobs defined in the repository.  These may be defined
+in the control.yml file shipped in the reposotiry.  This packages and 
+plugins will be installed on the jenkins principle upon every hook run:
+
+    required_jenkins_packages:
+        - git
+        - python-pip
+        - python-mock
+    required_jenkins_plugins:
+        - ssh-agent
+        - gearman-plugin
+        - git-client
+        - git
+
 
 Updating configuration
 ======================

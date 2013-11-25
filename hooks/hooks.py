@@ -68,10 +68,24 @@ def config_changed():
     else:
         log('Not updating resources until we have a config-repo configured.')
 
+    for rid in relation_ids('jenkins-configurator'):
+        jenkins_configurator_relation_joined(rid)
+
 
 @hooks.hook()
 def upgrade_charm():
     config_changed()
+
+
+@hooks.hook()
+def jenkins_configurator_relation_joined(rid=None):
+    """
+    Inform jenkins of any plugins our tests may require, as defined in the
+    control.yml of the config repo
+    """
+    plugins = jjb.required_plugins()
+    if plugins:
+        relation_set(required_plugins=' '.join(plugins), relation_id=rid)
 
 
 @hooks.hook(
