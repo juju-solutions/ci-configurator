@@ -25,16 +25,8 @@ proof: revision
 	@(charm proof $(PWD) || [ $$? -eq 100 ]) && echo OK
 	@test `cat revision` = 0 && rm revision
 
-installdeps: clean
-	@mkdir -p $(SOURCEDEPS_DIR) $(FILES_DIR)
-ifeq ($(CI_CONFIGURATOR_SOURCEDEPS_BRANCH), '')
-	@mkdir -p $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs
-	@echo Updating source dependencies...
-	@$(GIT) clone $(JBB_GIT) $(SOURCEDEPS_DIR)/jenkins-job-builder
-	@cd $(SOURCEDEPS_DIR) && $(CP) $(SOURCEDEPS_DIR)/jenkins-job-builder/tools/pip-requires $(FILES_DIR)/
-	@cd $(SOURCEDEPS_DIR) && $(TAR) cfz $(FILES_DIR)/jenkins-job-builder.tar.gz jenkins-job-builder/
-	@pip install --download $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs/ -r $(FILES_DIR)/pip-requires && $(CP) -R $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs $(FILES_DIR)/jenkins-job-builder_reqs
-else
+
+define update_with_branch
 	@echo Updating source dependencies from branch...
 	@mkdir -p $(SOURCEDEPS_DIR)
 	@$(RM) -rf $(SOURCEDEPS_DIR)/ci-configurator/*
@@ -43,6 +35,27 @@ else
 	@$(CP) -R $(SOURCEDEPS_DIR)/ci-configurator/jenkins-job-builder/jenkins-job-builder_reqs $(FILES_DIR)/jenkins-job-builder_reqs
 	@$(CP) $(SOURCEDEPS_DIR)/ci-configurator/jenkins-job-builder/jenkins-job-builder.tar.gz $(FILES_DIR)/
 	@$(CP) $(SOURCEDEPS_DIR)/ci-configurator/jenkins-job-builder/pip-requires $(FILES_DIR)/pip-requires
+endef
+
+define update_without_branch
+	@mkdir -p $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs
+	@echo Updating source dependencies...
+	@$(GIT) clone $(JBB_GIT) $(SOURCEDEPS_DIR)/jenkins-job-builder
+	@cd $(SOURCEDEPS_DIR) && $(CP) $(SOURCEDEPS_DIR)/jenkins-job-builder/tools/pip-requires $(FILES_DIR)/
+	@cd $(SOURCEDEPS_DIR) && $(TAR) cfz $(FILES_DIR)/jenkins-job-builder.tar.gz jenkins-job-builder/
+	@pip install --download $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs/ -r $(FILES_DIR)/pip-requires && $(CP) -R $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs $(FILES_DIR)/jenkins-job-builder_reqs
+endef
+
+installdeps: clean
+	@mkdir -p $(SOURCEDEPS_DIR) $(FILES_DIR)
+ifndef CI_CONFIGURATOR_SOURCEDEPS_BRANCH
+	$(call update_without_branch)
+else
+ifeq ($(CI_CONFIGURATOR_SOURCEDEPS_BRANCH), '')
+	$(call_update_without_branch)
+else
+	$(call update_with_branch)
+endif
 endif
 	
 
