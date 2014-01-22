@@ -9,6 +9,7 @@ import zuul
 
 import common
 
+from charmhelpers.fetch import apt_install, filter_installed_packages
 from charmhelpers.canonical_ci import cron
 from charmhelpers.core.hookenv import (
     charm_dir,
@@ -28,6 +29,7 @@ def install():
     common.ensure_user()
     if not os.path.exists(common.CONFIG_DIR):
         os.mkdir(common.CONFIG_DIR)
+    apt_install(filter_installed_packages(common.PACKAGES), fatal=True)
 
 
 @hooks.hook()

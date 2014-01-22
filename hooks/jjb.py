@@ -318,7 +318,13 @@ def update_jenkins():
     # install any packages that the repo says we need as dependencies.
     pkgs = required_packages()
     if pkgs:
-        apt_install(pkgs, fatal=True)
+        opts = []
+        if config('force-package-install'):
+            opts = [
+                '--option', 'Dpkg::Options::=--force-confnew',
+                '--option', 'Dpkg::Options::=--force-confdef',
+            ]
+        apt_install(pkgs, options=opts, fatal=True)
 
 
 def required_packages():

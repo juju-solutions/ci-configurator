@@ -69,4 +69,10 @@ options:
         type: string
         default: "*/15 * * * *"
         description: |
-            Cron-formatted schedule for launchpad sync        
+            Cron-formatted schedule for launchpad sync
+    force-package-install:
+        type: boolean
+        default: false
+        description:
+            If set to true, packages listed in control.yml will be forced to install
+            with the --force-confnew and --force-confdef apt options
