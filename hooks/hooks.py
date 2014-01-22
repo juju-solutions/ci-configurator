@@ -29,7 +29,6 @@ def install():
     common.ensure_user()
     if not os.path.exists(common.CONFIG_DIR):
         os.mkdir(common.CONFIG_DIR)
-    jjb.install()
 
 
 @hooks.hook()
@@ -83,6 +82,7 @@ def jenkins_configurator_relation_joined(rid=None):
     Inform jenkins of any plugins our tests may require, as defined in the
     control.yml of the config repo
     """
+    jjb.install()
     plugins = jjb.required_plugins()
     if plugins:
         relation_set(required_plugins=' '.join(plugins), relation_id=rid)
