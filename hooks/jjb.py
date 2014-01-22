@@ -11,8 +11,8 @@ import common
 from charmhelpers.core.hookenv import (
     charm_dir, config, log, relation_ids, relation_get,
     related_units, ERROR)
-from charmhelpers.fetch import apt_install
-from charmhelpers.core.host import restart_on_change
+from charmhelpers.fetch import apt_install, filter_installed_packages
+from charmhelpers.core.host import lsb_release, restart_on_change
 
 PACKAGES = ['git', 'python-pip']
 CONFIG_DIR = '/etc/jenkins_jobs'
@@ -44,12 +44,12 @@ url=%(jenkins_url)s
 
 def install():
     """
-    Install jenkins-job-builder from a remote git repository or a locally
-    bundled copy shipped with the charm.
+    Install jenkins-job-builder from a archive, remote git repository or a
+    locally bundled copy shipped with the charm.  Any locally bundled copy
+    overrides 'jjb-install-source' setting.
     """
     if not os.path.isdir(CONFIG_DIR):
         os.mkdir(CONFIG_DIR)
-    apt_install(PACKAGES, fatal=True)
     src = config('jjb-install-source')
     tarball = os.path.join(charm_dir(), 'files', TARBALL)
 
@@ -59,6 +59,13 @@ def install():
     elif src.startswith('git://'):
         log('Installing jenkins-job-builder from remote git: %s.' % src)
         install_from_git(src)
+    elif src == 'distro':
+        log('Installing jenkins-job-builder from Ubuntu archive.')
+        if lsb_release()['DISTRIB_CODENAME'] in ['precise', 'quantal']:
+            m = ('jenkins-job-builder package only available in Ubuntu 13.04 '
+                'and later.')
+            raise Exception(m)
+        apt_install(filter_installed_packages(['jenkins-job-builder']), fatal=True)
     else:
         m = ('Must specify a git url as install source or bundled source with '
              'the charm.')
@@ -80,6 +87,7 @@ def install_from_file(tarball):
     outdir = os.path.join('/tmp', 'jenkins-job-builder')
     _clean_tmp_dir(outdir)
 
+    apt_install(filter_installed_packages(['python-pip']), fatal=True)
     os.chdir(os.path.dirname(outdir))
     cmd = ['tar', 'xfz', tarball]
     subprocess.check_call(cmd)
@@ -98,6 +106,7 @@ def install_from_git(repo):
     log('*** Installing from remote git repository: %s' % repo)
     outdir = os.path.join('/tmp', 'jenkins-job-builder')
     _clean_tmp_dir(outdir)
+    apt_install(filter_installed_packages(['git']), fatal=True)
     cmd = ['git', 'clone', repo, outdir]
     subprocess.check_call(cmd)
     os.chdir(outdir)

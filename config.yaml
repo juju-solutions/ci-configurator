@@ -1,13 +1,17 @@
 options:
     jjb-install-source:
         type: string
-        default: 'git://github.com/openstack-infra/jenkins-job-builder.git'
+        default: "distro"
         description: |
-            Git repository to install jenkins-job-builder from.  Alternatively,
-            you may run the 'make sourcedeps' target of the Makefile to
-            package required assets into the charm prior to deploying, for
-            environments where network access is restricted.  Any bundled
-            package will override a any git repository set in config.
+            Installation source for jenkins-job-bulider.  Supported options:
+
+            distro (only supported on Ubuntu 13.10 and later)
+            git://github.com/openstack-infra/jenkins-job-builder.git or similar
+
+            Alternatively, you may run the 'make sourcedeps' target of the
+            Makefile to package required assets into the charm prior to deploying,
+            for environments where network access is restricted.  Any bundled
+            package will override any value set here.
     config-repo:
         type: string
         description: |

@@ -20,7 +20,6 @@ from charmhelpers.core.hookenv import (
     UnregisteredHookError,
 )
 
-
 hooks = Hooks()
 
 

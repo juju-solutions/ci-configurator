@@ -1,14 +1,21 @@
 import logging
 import os
-import paramiko
 import sys
 import subprocess
 import json
 
+from charmhelpers.fetch import apt_install
 from charmhelpers.core.hookenv import (
     log as _log,
     ERROR,
 )
+
+try:
+    import paramiko
+except ImportError:
+    # NOTE: paramiko seems not be installed by default on trusty cloud images
+    apt_install(['python-paramiko'])
+
 
 _connection = None
 GERRIT_DAEMON = "/etc/init.d/gerrit"
