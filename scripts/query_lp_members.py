@@ -18,9 +18,11 @@
 import os
 import sys
 import yaml
+import urllib2
 
 from launchpadlib.launchpad import Launchpad
 from launchpadlib.uris import LPNET_SERVICE_ROOT
+from lazr.restfulclient.errors import Unauthorized
 
 from openid.consumer import consumer
 from openid.cryptutil import randomString
@@ -102,7 +104,11 @@ def get_all_users(members_details, team_name):
 
         # If is_team recurse down(branch), else add this user details(leaf) to users
         if member.is_team:
-            users.extend(get_all_users(member.members_details, "{}/{}".format(team_name, member.name)))
+            try:
+                users.extend(get_all_users(member.members_details, "{}/{}".format(team_name, member.name)))
+            except Unauthorized as e:
+                print "WARN: skipping team={}/{} (Unauthorized)".format(team_name, member.name)
+                pass
         else:
             openid = get_openid(login)
             full_name = member.display_name.encode('ascii', 'replace')
