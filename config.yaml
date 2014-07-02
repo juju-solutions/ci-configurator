@@ -1,7 +1,7 @@
 options:
     jjb-install-source:
         type: string
-        default: "distro"
+        default: 'git://github.com/openstack-infra/jenkins-job-builder.git'
         description: |
             Installation source for jenkins-job-bulider.  Supported options:
 
