@@ -11,7 +11,8 @@ import common
 from charmhelpers.core.hookenv import (
     charm_dir, config, log, relation_ids, relation_get,
     related_units, ERROR)
-from charmhelpers.fetch import apt_install, filter_installed_packages
+from charmhelpers.fetch import (
+    apt_install, apt_update, filter_installed_packages)
 from charmhelpers.core.host import lsb_release, restart_on_change
 
 PACKAGES = ['git', 'python-pip']
@@ -65,6 +66,7 @@ def install():
             m = ('jenkins-job-builder package only available in Ubuntu 13.04 '
                 'and later.')
             raise Exception(m)
+        apt_update(fatal=True)
         apt_install(filter_installed_packages(['jenkins-job-builder']), fatal=True)
     else:
         m = ('Must specify a git url as install source or bundled source with '
