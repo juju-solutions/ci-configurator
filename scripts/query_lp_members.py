@@ -16,6 +16,7 @@
 # Synchronize Gerrit users from Launchpad.
 
 import os
+import re
 import sys
 import yaml
 import urllib2
@@ -34,7 +35,7 @@ GERRIT_CACHE_DIR = LAUNCHPAD_DIR+'/cache'
 GERRIT_CREDENTIALS = LAUNCHPAD_DIR+'/creds'
 
 # check parameters from command line
-if len(sys.argv)<3:
+if len(sys.argv) < 3:
     print "ERROR: Please send user and private key in parameters."
     sys.exit(1)
 
@@ -59,6 +60,7 @@ launchpad = Launchpad.login_with('Canonical CI Gerrit User Sync',
                                  GERRIT_CACHE_DIR,
                                  credentials_file=GERRIT_CREDENTIALS)
 
+
 def get_openid(lp_user):
     k = dict(id=randomString(16, '0123456789abcdef'))
     openid_consumer = consumer.Consumer(k, None)
@@ -80,13 +82,18 @@ with open(GROUPS_CONFIG_FILE, 'r') as f:
 NEED_FLUSH = False
 SEEN_LOGINS = set()
 
+
+def assert_is_valid_email(email):
+    if not email or not re.search('.+?@.+?\..+?', email):
+        msg = "invalid email address '%s'" % (email)
+        raise Exception(msg)
+
+
 # Recurse members_details to return a list of (final)users as a tuples:
 # (login, full_name, email, ssh_keys, openid)
 def get_all_users(members_details, team_name):
     users = []
     for detail in members_details:
-        user = None
-
         # detail.self_link ==
         # 'https://api.launchpad.net/1.0/~team/+member/${username}'
         login = detail.self_link.split('/')[-1]
@@ -98,31 +105,46 @@ def get_all_users(members_details, team_name):
             continue
         # Avoid re-visiting SEEN_LOGINS
         if login in SEEN_LOGINS:
-           continue
-        SEEN_LOGINS.add(login)
+            print ("'%s' details already identified - skipping alternate" %
+                   (login))
+            continue
+
         print '{}-entry: {}/{}'.format('T' if member.is_team else 'U', team_name, login)
 
         # If is_team recurse down(branch), else add this user details(leaf) to users
         if member.is_team:
             try:
                 users.extend(get_all_users(member.members_details, "{}/{}".format(team_name, member.name)))
-            except Unauthorized as e:
+            except Unauthorized:
                 print "WARN: skipping team={}/{} (Unauthorized)".format(team_name, member.name)
                 pass
         else:
             openid = get_openid(login)
             full_name = member.display_name.encode('ascii', 'replace')
             email = ''
+            errmsg = ("failed to get valid email address for '%s' (%s) - "
+                      "skipping")
             try:
                 email = member.preferred_email_address.email
+                assert_is_valid_email(email)
+            except Exception as exc:
+                print (errmsg % (login, str(exc)))
+                continue
             except:
-                email = login
+                # Do catchall just in case an exception is raised that does not
+                # inherit Exception.
+                print (errmsg % (login, 'no exception info available'))
+                continue
 
             ssh_keys = tuple(
                 "{} {} {}".format(get_type(key.keytype), key.keytext, key.comment).strip()
                 for key in member.sshkeys
             )
             users.append((login, full_name, email, ssh_keys, openid),)
+
+        # Only remember login if it was actually used.
+        SEEN_LOGINS.add(login)
+
     # Return a list with user details tuple
     return users
 
@@ -145,7 +167,7 @@ for group, teams in groups_config.items():
         final_users.extend(get_all_users(team.members_details, team_todo))
 
     if final_users:
-         NEED_FLUSH = True
+        NEED_FLUSH = True
 
     # add all the users
     try:

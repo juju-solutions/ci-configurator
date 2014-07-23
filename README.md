@@ -55,7 +55,7 @@ do so, you must branch the charm locally and run two Makefile targets:
     # Branches specified repository and bundles it in charm.  This branch
     # is what would be configured as 'config-repo' configuration setting
     # in an online environment.
-    $ CONFIG_BZR_REPO=lp:~canonical-ci/canonical-ci/sunnyvale-ci-config \
+    $ CONFIG_BZR_REPO=lp:~canonical-ci/canonical-ci/<project>-ci-config \
        make configrepo
 
 You may now deploy from the local repository and resources will be available to
