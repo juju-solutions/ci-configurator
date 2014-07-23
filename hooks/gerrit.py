@@ -199,12 +199,13 @@ def create_projects(admin_username, admin_privkey, base_url,
     try:
         for project in projects:
             name, repo = project.itervalues()
-            gerrit_client.create_project(name)
+            if not gerrit_client.create_project(name):
+                continue
 
             # successfully created project, push from git
             path_name = os.path.join(tmpdir, name.replace('/', ''))
             # clone and push
-            repo_url = 'ssh://%s@%s/%s' % (admin_username, base_url, repo)
+            repo_url = 'https://%s/%s' % (base_url, repo)
             cmd = ['git', 'clone', repo_url, path_name]
             common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
             cmds = [
