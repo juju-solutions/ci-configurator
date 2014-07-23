@@ -19,6 +19,7 @@ from charmhelpers.core.hookenv import (
     relation_set,
     Hooks,
     UnregisteredHookError,
+    INFO
 )
 
 hooks = Hooks()
@@ -61,15 +62,20 @@ def config_changed():
             schedule, common.CI_USER, common.CI_CONFIG_DIR,
             jjb.JOBS_CONFIG_DIR)
 
+    # NOTE: this needs to run before jjb update
+    for rid in relation_ids('jenkins-configurator'):
+        jenkins_configurator_relation_joined(rid)
+
     if have_repo:
         gerrit.update_gerrit()
-        jjb.update_jenkins()
+        if os.path.isdir(jjb.CONFIG_DIR):
+            jjb.update_jenkins()
+        else:
+            log("jjb not installed so not updating",
+                level=INFO)
         zuul.update_zuul()
     else:
         log('Not updating resources until we have a config-repo configured.')
-
-    for rid in relation_ids('jenkins-configurator'):
-        jenkins_configurator_relation_joined(rid)
 
 
 @hooks.hook()
