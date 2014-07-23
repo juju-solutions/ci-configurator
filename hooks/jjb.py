@@ -64,10 +64,11 @@ def install():
         log('Installing jenkins-job-builder from Ubuntu archive.')
         if lsb_release()['DISTRIB_CODENAME'] in ['precise', 'quantal']:
             m = ('jenkins-job-builder package only available in Ubuntu 13.04 '
-                'and later.')
+                 'and later.')
             raise Exception(m)
         apt_update(fatal=True)
-        apt_install(filter_installed_packages(['jenkins-job-builder']), fatal=True)
+        apt_install(filter_installed_packages(['jenkins-job-builder']),
+                    fatal=True)
     else:
         m = ('Must specify a git url as install source or bundled source with '
              'the charm.')
@@ -201,7 +202,8 @@ def admin_credentials():
 def is_jenkins_slave():
     return os.path.isfile('/etc/init/jenkins-slave.conf')
 
-def update_jenkins_config():
+
+def _update_jenkins_config():
     if not os.path.isdir(JOBS_CONFIG_DIR):
         log('Could not find jobs-config directory at expected location, '
             'skipping jenkins-jobs update (%s)' % JOBS_CONFIG_DIR, ERROR)
@@ -245,7 +247,7 @@ def update_jenkins_config():
     restart_on_change({JENKINS_CONFIG_FILE: ['jenkins']})
 
 
-def update_jenkins_jobs():
+def _update_jenkins_jobs():
     if not write_jjb_config():
         log('Could not write jenkins-job-builder config, skipping '
             'jobs update.')
@@ -307,8 +309,8 @@ def update_jenkins():
     log("*** Updating jenkins.")
     if not is_jenkins_slave():
         log('Running on master, updating config and jobs.')
-        update_jenkins_config()
-        update_jenkins_jobs()
+        _update_jenkins_config()
+        _update_jenkins_jobs()
 
     # run repo setup scripts.
     setupd = os.path.join(common.CI_CONFIG_DIR, 'setup.d')
