@@ -1,13 +1,9 @@
 import logging
 import os
-import paramiko
-import sys
 import subprocess
-import json
 
 from charmhelpers.core.hookenv import (
-    log as _log,
-    ERROR,
+    log as _log
 )
 
 JENKINS_DAEMON = "/etc/init.d/jenkins"

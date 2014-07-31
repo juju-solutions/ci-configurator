@@ -12,6 +12,7 @@ except ImportError:
     apt_install("python-bzrlib")
     from bzrlib.branch import Branch
 
+
 class BzrUrlFetchHandler(BaseFetchHandler):
     """Handler for bazaar branches via generic and lp URLs"""
     def can_handle(self, source):
@@ -38,7 +39,8 @@ class BzrUrlFetchHandler(BaseFetchHandler):
     def install(self, source):
         url_parts = self.parse_url(source)
         branch_name = url_parts.path.strip("/").split("/")[-1]
-        dest_dir = os.path.join(os.environ.get('CHARM_DIR'), "fetched", branch_name)
+        dest_dir = os.path.join(os.environ.get('CHARM_DIR'), "fetched",
+                                branch_name)
         if not os.path.exists(dest_dir):
             mkdir(dest_dir, perms=0755)
         try:
@@ -46,4 +48,3 @@ class BzrUrlFetchHandler(BaseFetchHandler):
         except OSError as e:
             raise UnhandledSource(e.strerror)
         return dest_dir
-
