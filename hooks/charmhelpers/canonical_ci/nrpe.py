@@ -31,7 +31,7 @@ NRPE_CHECKS = {
 }
 
 
-CONF_HEADER = "#"*80 + "\nThis file is Juju managed\n" + "#"*80 + '\n'
+CONF_HEADER = "#" * 80 + "\n# This file is Juju managed\n" + "#" * 80 + '\n'
 
 
 def nrpe_service_config(check_name, nagios_hostname, nagios_servicegroup):

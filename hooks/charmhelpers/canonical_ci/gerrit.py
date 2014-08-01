@@ -1,21 +1,14 @@
 import logging
 import os
+import paramiko
 import sys
 import subprocess
 import json
 
-from charmhelpers.fetch import apt_install
 from charmhelpers.core.hookenv import (
     log as _log,
     ERROR,
 )
-
-try:
-    import paramiko
-except ImportError:
-    # NOTE: paramiko seems not be installed by default on trusty cloud images
-    apt_install(['python-paramiko'])
-
 
 _connection = None
 GERRIT_DAEMON = "/etc/init.d/gerrit"
@@ -72,7 +65,7 @@ class GerritClient(object):
         self.ssh = get_ssh(host, user, port, key_file)
 
     def _run_cmd(self, cmd):
-        stdin, stdout, stderr = self.ssh.exec_command(cmd)
+        _, stdout, stderr = self.ssh.exec_command(cmd)
         return (stdout.read(), stderr.read())
 
     def create_user(self, user, name, group, ssh_key):
@@ -91,15 +84,15 @@ class GerritClient(object):
                 sys.exit(1)
             else:
                 # retrieve user id and update keys
-                account_id = None  
-                cmd = ('gerrit gsql --format json -c "SELECT account_id '
-                    'FROM account_external_ids WHERE external_id=\'username:%s\'"'
-                    % (user))
+                account_id = None
+                sql = ("SELECT account_id FROM account_external_ids WHERE "
+                       "external_id='username:%s'" % (user))
+                cmd = ('gerrit gsql --format json -c "%s"' % (sql))
                 stdout, stderr = self._run_cmd(cmd)
                 if not stderr:
                     # load and decode json, extract account id
                     lines = stdout.splitlines()
-                    if len(lines)>0:
+                    if len(lines) > 0:
                         res = json.loads(lines[0])
                         try:
                             account_id = res['columns']['account_id']
@@ -108,14 +101,16 @@ class GerritClient(object):
 
                 # if found, update ssh keys
                 if account_id:
-                    cmd = ('gerrit gsql -c "DELETE FROM account_ssh_keys '
-                           'WHERE account_id=%s' % account_id)
+                    sql = ("DELETE FROM account_ssh_keys WHERE account_id=%s"
+                           % account_id)
+                    cmd = ('gerrit gsql -c "%s"' % (sql))
                     stdout, stderr = self._run_cmd(cmd)
 
                     # insert new key
-                    cmd = ('gerrit gsql -c "INSERT INTO account_ssh_keys '
-                        '(ssh_public_key, valid, account_id, seq) VALUES (\'%s\', \'Y\', '
-                        '\'%s\', 0)" ' % (ssh_key, account_id))
+                    sql = ("INSERT INTO account_ssh_keys (ssh_public_key, "
+                           "valid, account_id, seq) VALUES ('%s', 'Y', "
+                           "'%s', 0)" % (ssh_key, account_id))
+                    cmd = ('gerrit gsql -c "%s"' % (sql))
                     stdout, stderr = self._run_cmd(cmd)
 
         # reboot gerrit to refresh accounts
@@ -132,7 +127,7 @@ class GerritClient(object):
             openid = user[4]
 
             cmd = (u'gerrit create-account %s --full-name "%s" '
-                   u'--group "%s" --email "%s"' % 
+                   u'--group "%s" --email "%s"' %
                    (login, name, group, email))
             stdout, stderr = self._run_cmd(cmd)
 
@@ -141,15 +136,15 @@ class GerritClient(object):
                     sys.exit(1)
 
             # retrieve user id
-            account_id = None  
-            cmd = ('gerrit gsql --format json -c "SELECT account_id '
-                'FROM account_external_ids WHERE external_id=\'username:%s\'"'
-                % (login))
+            account_id = None
+            sql = ("SELECT account_id FROM account_external_ids WHERE "
+                   "external_id='username:%s'" % (login))
+            cmd = ('gerrit gsql --format json -c "%s"' % (sql))
             stdout, stderr = self._run_cmd(cmd)
             if not stderr:
                 # load and decode json, extract account id
                 lines = stdout.splitlines()
-                if len(lines)>0:
+                if len(lines) > 0:
                     res = json.loads(lines[0])
                     try:
                         account_id = res['columns']['account_id']
@@ -159,10 +154,12 @@ class GerritClient(object):
             # if found, update ssh keys and openid
             if account_id:
                 # remove old keys and add new
-                if len(ssh)>0:
-                    cmd = ('gerrit gsql -c "DELETE FROM account_ssh_keys '
-                           'WHERE account_id=%s AND ssh_public_key NOT IN (%s)"' % 
-                           (account_id, (', '.join('\''+item+'\'' for item in ssh)) ))
+                if len(ssh) > 0:
+                    sql = ("DELETE FROM account_ssh_keys WHERE account_id=%s "
+                           "AND ssh_public_key NOT IN (%s)" %
+                           (account_id,
+                            (', '.join("'%s'" % item for item in ssh))))
+                    cmd = ('gerrit gsql -c "%s"' % (sql))
                 else:
                     cmd = ('gerrit gsql -c "DELETE FROM account_ssh_keys '
                            'WHERE account_id=%s' % account_id)
@@ -172,36 +169,44 @@ class GerritClient(object):
                 num_key = 0
                 for ssh_key in ssh:
                     # insert new keys
-                    cmd = ('gerrit gsql -c "INSERT INTO account_ssh_keys '
-                        '(ssh_public_key, valid, account_id, seq) SELECT '
-                        '%(ssh_key)s, %(valid)s, %(account_id)s, %(num_key)s '
-                        'WHERE NOT EXISTS (SELECT '
-                        'account_id FROM account_ssh_keys WHERE '
-                        'account_id=%(account_id)s AND ssh_public_key=%(ssh_key)s)"' %
-                        {'ssh_key': '\''+ssh_key+'\'', 'valid':'\'Y\'',
-                         'account_id': '\''+account_id+'\'', 'num_key': num_key})
-                    num_key+=1
+                    sql = ("INSERT INTO account_ssh_keys (ssh_public_key, "
+                           "valid, account_id, seq) SELECT %(ssh_key)s, "
+                           "%(valid)s, %(account_id)s, %(num_key)s WHERE NOT "
+                           "EXISTS (SELECT account_id FROM account_ssh_keys "
+                           "WHERE account_id=%(account_id)s AND "
+                           "ssh_public_key=%(ssh_key)s)" %
+                           {'ssh_key': "'%s'" % ssh_key,
+                            'valid': "'Y'",
+                            'account_id': "'%s'" % account_id,
+                            'num_key': num_key})
+                    cmd = ('gerrit gsql -c "%s"' % (sql))
+                    num_key += 1
                     stdout, stderr = self._run_cmd(cmd)
 
                 # replace external id
                 if openid:
-                    openid = openid.replace('login.launchpad.net', 'login.ubuntu.com')
-                    cmd = ('gerrit gsql -c "DELETE FROM account_external_ids '
-                           'WHERE account_id=%s AND external_id NOT IN (%s) AND '
-                           'external_id LIKE \'http%%\'"' % (account_id, '\''+openid+'\''))
+                    openid = openid.replace('login.launchpad.net',
+                                            'login.ubuntu.com')
+                    sql = ("DELETE FROM account_external_ids WHERE "
+                           "account_id=%s AND external_id NOT IN (%s) AND "
+                           "external_id LIKE 'http%%'" %
+                           (account_id, "'%s'" % openid))
+                    cmd = ('gerrit gsql -c "%s"' % (sql))
                     stdout, stderr = self._run_cmd(cmd)
 
                     # replace launchpad for ubuntu account
-                    cmd = ('gerrit gsql -c "INSERT INTO account_external_ids '
-                           '(account_id, email_address, external_id) SELECT '
-                           '%(account_id)s, %(email_address)s, %(external_id)s WHERE '
-                           'NOT EXISTS (SELECT account_id FROM account_external_ids '
-                           'WHERE account_id=%(account_id)s AND external_id=%(external_id)s)"' % 
-                           {'account_id':'\''+account_id+'\'', 
-                           'email_address':'\''+str(email)+'\'', 
-                           'external_id': '\''+openid+'\''})
+                    sql = ("INSERT INTO account_external_ids "
+                           "(account_id, email_address, external_id) SELECT "
+                           "%(account_id)s, %(email_address)s, "
+                           "%(external_id)s WHERE NOT EXISTS (SELECT "
+                           "account_id FROM account_external_ids WHERE "
+                           "account_id=%(account_id)s AND "
+                           "external_id=%(external_id)s)" %
+                           {'account_id': "'%s'" % account_id,
+                            'email_address': "'%s'" % str(email),
+                            'external_id': "'%s'" % openid})
+                    cmd = ('gerrit gsql -c "%s"' % (sql))
                     stdout, stderr = self._run_cmd(cmd)
-
 
     def create_project(self, project):
         log('Creating gerrit project %s' % project)
@@ -224,4 +229,4 @@ class GerritClient(object):
 
     def flush_cache(self):
         cmd = ('gerrit flush-caches')
-        stdout, stderr = self._run_cmd(cmd)
+        self._run_cmd(cmd)
