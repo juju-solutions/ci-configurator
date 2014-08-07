@@ -258,6 +258,10 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
             journal = os.path.join(REPO_INIT_JOURNAL_PATH,
                                    'repo.%s.journal' % (project))
 
+            # Make sure journal store path exists
+            if not os.path.isdir(REPO_INIT_JOURNAL_PATH):
+                os.makedirs(REPO_INIT_JOURNAL_PATH)
+
             if os.path.exists(journal):
                 log("Found journal file %s indicating a previous repo init "
                     "run failed to complete - cleaning up and trying again" %
