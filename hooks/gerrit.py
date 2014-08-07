@@ -234,15 +234,20 @@ def setup_gitreview(path, repo):
 
 
 def repo_is_initialised(url, branches):
+    """Query git repository to get configuration and check that all branches
+    exist (both config and default). If they do, return True otherwise False.
+    """
+    # Get list of refs extant in the repo
     cmd = ['git', 'ls-remote', url]
-    # Get list of branches extant in teh repo
     stdout = subprocess.check_output(cmd)
-    key = r"^[\S]+.+?%s"
-    keys = [re.compile(key % b) for b in branches]
 
-    # These two branches are added by Gerrit so should always exist
+    # Match branches
+    key = r"^[\S]+\s+?%s"
+    keys = [re.compile(key % ("refs/heads/%s" % b)) for b in branches]
+
+    # These two refs should always exist
     keys.append(re.compile(key % "HEAD"))
-    keys.append(re.compile(key % "config"))
+    keys.append(re.compile(key % "refs/meta/config"))
 
     found = 0
     for line in stdout.split('\n'):
@@ -285,7 +290,7 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
             repo_url = 'https://%s/%s' % (base_url, repo)
             gerrit_remote_url = "%s/%s.git" % (GIT_PATH, repo)
 
-            # Only continue if the repo has NOT been successfully initialised.
+            # Only proceed if the repo has NOT been successfully initialised.
             if repo_is_initialised(gerrit_remote_url, branches):
                 log("Repository '%s' already initialised - skipping" %
                     (git_srv_path), level=INFO)
