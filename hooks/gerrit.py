@@ -259,12 +259,16 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
                                    'repo.%s.journal' % (project))
 
             if os.path.exists(journal):
+                log("Found journal file %s indicating a previous repo init "
+                    "run failed to complete - cleaning up and trying again" %
+                    (journal), level=WARNING)
                 shutil.rmtree(git_srv_path, ignore_errors=True)
             elif os.path.exists(git_srv_path):
                 # TODO: need a better way to do this. Ideally we would have
                 # some state management to indicate that the repo has been
                 # fully initialised.
-                log("Repository '%s' already exists - skipping setup")
+                log("Repository '%s' already exists - skipping setup" %
+                    (git_srv_path), level=INFO)
                 continue
             else:
                 # Create journal file
