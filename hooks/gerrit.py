@@ -252,11 +252,9 @@ def create_projects(admin_username, admin_privkey, base_url,
             cmd = ['git', 'clone', repo_url, path_name]
             common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
 
-            cmds = []
-
             # Setup the .gitreview file to point to this repo by default (as
             # opposed to upstream openstack).
-            cmds.append(setup_gitreview(path_name))
+            cmds = setup_gitreview(path_name)
 
             cmds.append(['git', 'remote', 'add', 'gerrit', '%s/%s.git' %
                          (GIT_PATH, repo)])
