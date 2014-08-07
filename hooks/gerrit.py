@@ -209,6 +209,9 @@ def setup_gitreview(path, repo):
     cmds = []
     git_review_cfg = '.gitreview'
     target = os.path.join(path, git_review_cfg)
+
+    log("Configuring %s" % (target))
+
     if not os.path.exists(target):
         log("%s not found in %s repo" % (target, repo), level=INFO)
         cmds.append(['git', 'add', git_review_cfg])
