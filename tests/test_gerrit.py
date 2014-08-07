@@ -31,7 +31,7 @@ class GerritTestCase(testtools.TestCase):
                           cmds)
         with open(os.path.join(self.tmpdir, '.gitreview'), 'r') as fd:
             self.assertEqual(['[gerrit]\n', 'host=10.0.0.1\n', 'port=29418\n',
-                              'project=%s' % (project)], fd.readlines())
+                              'project=%s\n' % (project)], fd.readlines())
 
     @mock.patch('tempfile.mkdtemp')
     @mock.patch('gerrit.unit_get')
@@ -49,4 +49,4 @@ class GerritTestCase(testtools.TestCase):
                           cmds)
         with open(os.path.join(self.tmpdir, '.gitreview'), 'r') as fd:
             self.assertEqual(['[gerrit]\n', 'host=10.0.0.1\n', 'port=29418\n',
-                              'project=%s' % (project)], fd.readlines())
+                              'project=%s\n' % (project)], fd.readlines())

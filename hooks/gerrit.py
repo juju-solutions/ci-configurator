@@ -3,6 +3,7 @@ import subprocess
 import tempfile
 import yaml
 import sys
+import shutil
 from base64 import b64decode
 
 import common
@@ -33,13 +34,15 @@ HOOKS_DIR = os.path.join(GERRIT_CONFIG_DIR, 'hooks')
 PERMISSIONS_DIR = os.path.join(GERRIT_CONFIG_DIR, 'permissions')
 PROJECTS_CONFIG_FILE = os.path.join(GERRIT_CONFIG_DIR, 'projects/projects.yml')
 GROUPS_CONFIG_FILE = os.path.join(GERRIT_CONFIG_DIR, 'permissions/groups.yml')
-GERRIT_USER = "gerrit2"
+GIT_PATH = os.path.join('/srv', 'git')
 SSH_PORT = 29418
-GIT_PATH = '/srv/git'
-WAR_PATH = '/home/gerrit2/gerrit-wars/gerrit.war'
-SITE_PATH = '/home/gerrit2/review_site'
-LOGS_PATH = SITE_PATH+'/logs'
-LAUNCHPAD_DIR = '/home/gerrit2/.launchpadlib'
+GERRIT_USER = 'gerrit2'
+GERRIT_USER_HOME = os.path.join('/home', GERRIT_USER)
+WAR_PATH = os.path.join(GERRIT_USER_HOME, 'gerrit-wars', 'gerrit.war')
+SITE_PATH = os.path.join(GERRIT_USER_HOME, 'review_site')
+LOGS_PATH = os.path.join(SITE_PATH, 'logs')
+LAUNCHPAD_DIR = os.path.join(GERRIT_USER_HOME, '.launchpadlib')
+REPO_INIT_JOURNAL_PATH = os.path.join(GERRIT_USER_HOME, 'repo_init_journals')
 TEMPLATES = 'templates'
 
 
@@ -81,7 +84,7 @@ def update_hooks(hooks_dest, settings):
             with open(current_path, 'r') as f:
                 contents = f.read()
             for key, value in settings.items():
-                pattern = '{{'+key+'}}'
+                pattern = '{{%s}}' % (key)
                 contents = contents.replace(pattern, value)
             with open(current_path, 'w') as f:
                 f.write(contents)
@@ -98,14 +101,14 @@ def update_permissions(admin_username, admin_email, admin_privkey):
     # create launchpad directory and setup permissions
     if not os.path.isdir(LAUNCHPAD_DIR):
         os.mkdir(LAUNCHPAD_DIR)
-        cmd = ['chown', GERRIT_USER+':'+GERRIT_USER, LAUNCHPAD_DIR]
+        cmd = ['chown', "%s:%s" % (GERRIT_USER, GERRIT_USER), LAUNCHPAD_DIR]
         subprocess.check_call(cmd)
         os.chmod(LAUNCHPAD_DIR, 0774)
 
     # check if we have creds, push to dir
     if config('lp-credentials-file'):
         creds = b64decode(config('lp-credentials-file'))
-        with open(LAUNCHPAD_DIR+'/creds', 'w') as f:
+        with open(os.path.join(LAUNCHPAD_DIR, 'creds'), 'w') as f:
             f.write(creds)
 
     # if we have teams and schedule, update cronjob
@@ -136,7 +139,7 @@ def update_permissions(admin_username, admin_email, admin_privkey):
         tmppath = tempfile.mkdtemp('', 'gerritperms')
         if tmppath:
             subprocess.check_call(
-                ["chown", GERRIT_USER+":"+GERRIT_USER, tmppath])
+                ["chown", "%s:%s" % (GERRIT_USER, GERRIT_USER), tmppath])
             os.chmod(tmppath, 0774)
 
             cmds = [
@@ -153,7 +156,8 @@ def update_permissions(admin_username, admin_email, admin_privkey):
                 common.run_as_user(
                     user=GERRIT_USER, cmd=cmd, cwd=tmppath)
 
-            common.sync_dir(PERMISSIONS_DIR+'/All-Projects', tmppath)
+            common.sync_dir(os.path.join(PERMISSIONS_DIR, 'All-Projects'),
+                            tmppath)
             os.chdir(tmppath)
 
             # generate groups file
@@ -231,28 +235,43 @@ def setup_gitreview(path, repo):
     return cmds
 
 
-# globally create all projects, clone and push
-def create_projects(admin_username, admin_privkey, base_url,
-                    projects, branches):
+def create_projects(admin_username, admin_privkey, base_url, projects,
+                    branches):
+    """Globally create all projects and repositories, clone and push"""
     tmpdir = tempfile.mkdtemp()
-    subprocess.check_call(
-        ["chown", GERRIT_USER+":"+GERRIT_USER, tmpdir])
+    cmd = ["chown", "%s:%s" % (GERRIT_USER, GERRIT_USER), tmpdir]
+    subprocess.check_call(cmd)
     os.chmod(tmpdir, 0774)
 
-    gerrit_client = GerritClient(
-        host='localhost',
-        user=admin_username, port=SSH_PORT,
-        key_file=admin_privkey)
+    gerrit_client = GerritClient(host='localhost', user=admin_username,
+                                 port=SSH_PORT, key_file=admin_privkey)
 
     try:
         for project in projects:
             name, repo = project.itervalues()
+
             if not gerrit_client.create_project(name):
+                # TODO: improve how this is handled/reported
+                pass
+
+            git_srv_path = os.path.join(GIT_PATH, name)
+            journal = os.path.join(REPO_INIT_JOURNAL_PATH,
+                                   'repo.%s.journal' % (project))
+
+            if os.path.exists(journal):
+                shutil.rmtree(git_srv_path, ignore_errors=True)
+            elif os.path.exists(git_srv_path):
+                # TODO: need a better way to do this. Ideally we would have
+                # some state management to indicate that the repo has been
+                # fully initialised.
+                log("Repository '%s' already exists - skipping setup")
                 continue
+            else:
+                # Create journal file
+                with open(journal, 'w'):
+                    pass
 
-            # successfully created project, push from git
             repo_path = os.path.join(tmpdir, name.replace('/', ''))
-
             repo_url = 'https://%s/%s' % (base_url, repo)
             log("Cloning git repository '%s'" % (repo_url))
             cmd = ['git', 'clone', repo_url, repo_path]
@@ -264,18 +283,19 @@ def create_projects(admin_username, admin_privkey, base_url,
 
             cmds.append(['git', 'remote', 'add', 'gerrit', '%s/%s.git' %
                          (GIT_PATH, repo)])
+            # TODO: think this might be redundant now
             cmds.append(['git', 'fetch', '--all'])
 
             for cmd in cmds:
                 common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=repo_path)
 
-            # push to each branch if needed
+            # Push to each branch if needed
             for branch in branches:
                 branch = branch.strip()
                 try:
-                    cmd = ['git', 'show-branch', 'gerrit/'+branch]
-                    common.run_as_user(
-                        user=GERRIT_USER, cmd=cmd, cwd=repo_path)
+                    cmd = ['git', 'show-branch', 'gerrit/%s' % (branch)]
+                    common.run_as_user(user=GERRIT_USER, cmd=cmd,
+                                       cwd=repo_path)
                 except Exception:
                     # branch does not exist, create it
                     ref = 'HEAD:refs/heads/%s' % branch
@@ -287,6 +307,9 @@ def create_projects(admin_username, admin_privkey, base_url,
                     for cmd in cmds:
                         common.run_as_user(
                             user=GERRIT_USER, cmd=cmd, cwd=repo_path)
+
+            # Delete journal now that repo init is complete
+            os.remove(journal)
 
             gerrit_client.flush_cache()
 
