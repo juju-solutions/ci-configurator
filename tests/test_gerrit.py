@@ -6,6 +6,12 @@ import tempfile
 import shutil
 
 
+LS_REMOTE_OUTPUT = """
+3bd6f626873b11b27624769554ec5fbebe48a056    HEAD
+3bd6f626873b11b27624769554ec5fbebe48a056    refs/heads/master
+15ac7baff8d1251547a51dd3b1d51c52e0932d0d    refs/meta/config
+"""
+
 class GerritTestCase(testtools.TestCase):
 
     def setUp(self):
@@ -50,3 +56,11 @@ class GerritTestCase(testtools.TestCase):
         with open(os.path.join(self.tmpdir, '.gitreview'), 'r') as fd:
             self.assertEqual(['[gerrit]\n', 'host=10.0.0.1\n', 'port=29418\n',
                               'project=%s\n' % (project)], fd.readlines())
+
+    @mock.patch('subprocess.check_output')
+    @mock.patch('gerrit.log')
+    def test_repo_is_initialised(self, mock_log, mock_check_output):
+        branches= ['master']
+        mock_check_output.return_value = LS_REMOTE_OUTPUT
+        result = gerrit.repo_is_initialised('/foo/bar', branches)
+        self.assertTrue(result)

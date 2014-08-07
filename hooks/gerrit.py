@@ -1,12 +1,12 @@
+from base64 import b64decode
+import common
 import os
+import re
 import subprocess
-import tempfile
-import yaml
 import sys
 import shutil
-from base64 import b64decode
-
-import common
+import tempfile
+import yaml
 
 from charmhelpers.core.hookenv import (
     config,
@@ -42,7 +42,6 @@ WAR_PATH = os.path.join(GERRIT_USER_HOME, 'gerrit-wars', 'gerrit.war')
 SITE_PATH = os.path.join(GERRIT_USER_HOME, 'review_site')
 LOGS_PATH = os.path.join(SITE_PATH, 'logs')
 LAUNCHPAD_DIR = os.path.join(GERRIT_USER_HOME, '.launchpadlib')
-REPO_INIT_JOURNAL_PATH = os.path.join(GERRIT_USER_HOME, 'repo_init_journals')
 TEMPLATES = 'templates'
 
 
@@ -234,6 +233,32 @@ def setup_gitreview(path, repo):
 
     return cmds
 
+import sys
+
+def repo_is_initialised(url, branches):
+    cmd = ['git', 'ls-remote', url]
+    # Get list of branches extant in teh repo
+    stdout = subprocess.check_output(cmd)
+    key = r"^[\S]+.+?%s"
+    keys = [re.compile(key % b) for b in branches]
+
+    # These two branches are added by Gerrit so should always exist
+    keys.append(re.compile(key % "HEAD"))
+    keys.append(re.compile(key % "config"))
+
+    found = 0
+    for line in stdout.split('\n'):
+        for i, key in enumerate(keys):
+            result = key.match(line)
+            if result:
+                found += 1
+                keys.pop(i)
+                break
+
+    if found == len(branches) + 2:
+        return True
+
+    return False
 
 def create_projects(admin_username, admin_privkey, base_url, projects,
                     branches):
@@ -250,37 +275,24 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
         for project in projects:
             name, repo = project.itervalues()
 
+            # TODO: currently if False is returned this can indicate either
+            # error or already exists. Needs fixing in charm-helpers and
+            # syncing in.
             if not gerrit_client.create_project(name):
-                # TODO: improve how this is handled/reported
                 pass
 
             git_srv_path = os.path.join(GIT_PATH, name)
-            journal = os.path.join(REPO_INIT_JOURNAL_PATH,
-                                   'repo.%s.journal' % (project))
-
-            # Make sure journal store path exists
-            if not os.path.isdir(REPO_INIT_JOURNAL_PATH):
-                os.makedirs(REPO_INIT_JOURNAL_PATH)
-
-            if os.path.exists(journal):
-                log("Found journal file %s indicating a previous repo init "
-                    "run failed to complete - cleaning up and trying again" %
-                    (journal), level=WARNING)
-                shutil.rmtree(git_srv_path, ignore_errors=True)
-            elif os.path.exists(git_srv_path):
-                # TODO: need a better way to do this. Ideally we would have
-                # some state management to indicate that the repo has been
-                # fully initialised.
-                log("Repository '%s' already exists - skipping setup" %
-                    (git_srv_path), level=INFO)
-                continue
-            else:
-                # Create journal file
-                with open(journal, 'w'):
-                    pass
-
+            project_name = repo.partition('/')[2]
             repo_path = os.path.join(tmpdir, name.replace('/', ''))
             repo_url = 'https://%s/%s' % (base_url, repo)
+            gerrit_remote_url = "%s/%s.git" % (GIT_PATH, repo)
+
+            # Only continue if the repo has NOT been successfully initialised.
+            if self.repo_is_initialised(gerrit_remote_url, branches):
+                log("Repository '%s' already initialised - skipping" %
+                    (git_srv_path), level=INFO)
+                continue
+
             log("Cloning git repository '%s'" % (repo_url))
             cmd = ['git', 'clone', repo_url, repo_path]
             common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
@@ -289,8 +301,7 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
             # opposed to upstream openstack).
             cmds = setup_gitreview(repo_path, name)
 
-            cmds.append(['git', 'remote', 'add', 'gerrit', '%s/%s.git' %
-                         (GIT_PATH, repo)])
+            cmds.append(['git', 'remote', 'add', 'gerrit', gerrit_remote_url])
             # TODO: think this might be redundant now
             cmds.append(['git', 'fetch', '--all'])
 
@@ -307,17 +318,12 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
                 except Exception:
                     # branch does not exist, create it
                     ref = 'HEAD:refs/heads/%s' % branch
-                    cmds = [
-                        ['git', 'checkout', branch],
-                        ['git', 'pull'],
-                        ['git', 'push', '--force', 'gerrit', ref]
-                        ]
+                    cmds = [['git', 'checkout', branch],
+                            ['git', 'pull'],
+                            ['git', 'push', '--force', 'gerrit', ref]]
                     for cmd in cmds:
-                        common.run_as_user(
-                            user=GERRIT_USER, cmd=cmd, cwd=repo_path)
-
-            # Delete journal now that repo init is complete
-            os.remove(journal)
+                        common.run_as_user(user=GERRIT_USER, cmd=cmd,
+                                           cwd=repo_path)
 
             gerrit_client.flush_cache()
 
@@ -335,18 +341,17 @@ def update_projects(admin_username, privkey_path):
         return False
 
     # parse yaml file to grab config
-    config = {}
     with open(PROJECTS_CONFIG_FILE, 'r') as f:
         config = yaml.load(f)
-    if ('base_url' not in config or 'branches' not in config or
-       'projects' not in config):
-        log('Gerrit projects config not found', level=WARNING)
 
-    projects = config['projects']
-    branches = config['branches']
-    if projects:
+    for opt in ['base_url', 'branches', 'projects']:
+        if opt not in config:
+            log('Gerrit projects config not found', level=WARNING)
+            break
+
+    if 'projects' in config:
         create_projects(admin_username, privkey_path, config['base_url'],
-                        projects, branches)
+                        config['projects'], config['branches'])
 
 
 def update_gerrit():
