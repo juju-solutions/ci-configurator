@@ -196,7 +196,7 @@ def update_permissions(admin_username, admin_email, admin_privkey):
     return True
 
 
-def setup_gitreview(repo):
+def setup_gitreview(path, repo):
     """
     Configure .gitreview so that when user clones repo the default git-review
     target is their CIaaS not upstream openstack.
@@ -207,14 +207,15 @@ def setup_gitreview(repo):
     changes.
     """
     cmds = []
-    target = '.gitreview'
+    git_review_cfg = '.gitreview'
+    target = os.path.join(path, git_review_cfg)
     if not os.path.exists(target):
         log("%s not found in %s repo" % (target, repo), level=INFO)
-        cmds.append(['git', 'add', target])
+        cmds.append(['git', 'add', git_review_cfg])
 
     host = unit_get('private-address')
 
-    with open(os.path.join(TEMPLATES, target), 'r') as fd:
+    with open(os.path.join(TEMPLATES, git_review_cfg), 'r') as fd:
         t = Template(fd.read())
         rendered = t.render(repo=repo, host=host, port=SSH_PORT)
 
@@ -225,6 +226,7 @@ def setup_gitreview(repo):
                  "Configured git-review to point to %s" % (host)])
 
     return cmds
+
 
 # globally create all projects, clone and push
 def create_projects(admin_username, admin_privkey, base_url,
@@ -254,7 +256,7 @@ def create_projects(admin_username, admin_privkey, base_url,
 
             # Setup the .gitreview file to point to this repo by default (as
             # opposed to upstream openstack).
-            cmds = setup_gitreview(path_name)
+            cmds = setup_gitreview(path_name, repo)
 
             cmds.append(['git', 'remote', 'add', 'gerrit', '%s/%s.git' %
                          (GIT_PATH, repo)])
