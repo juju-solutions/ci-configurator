@@ -248,22 +248,22 @@ def create_projects(admin_username, admin_privkey, base_url,
                 continue
 
             # successfully created project, push from git
-            path_name = os.path.join(tmpdir, name.replace('/', ''))
+            repo_path = os.path.join(tmpdir, name.replace('/', ''))
             # clone and push
             repo_url = 'https://%s/%s' % (base_url, repo)
-            cmd = ['git', 'clone', repo_url, path_name]
+            cmd = ['git', 'clone', repo_url, repo_path]
             common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
 
             # Setup the .gitreview file to point to this repo by default (as
             # opposed to upstream openstack).
-            cmds = setup_gitreview(path_name, repo)
+            cmds = setup_gitreview(repo_path, name)
 
             cmds.append(['git', 'remote', 'add', 'gerrit', '%s/%s.git' %
                          (GIT_PATH, repo)])
             cmds.append(['git', 'fetch', '--all'])
 
             for cmd in cmds:
-                common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=path_name)
+                common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=repo_path)
 
             # push to each branch if needed
             for branch in branches:
@@ -271,7 +271,7 @@ def create_projects(admin_username, admin_privkey, base_url,
                 try:
                     cmd = ['git', 'show-branch', 'gerrit/'+branch]
                     common.run_as_user(
-                        user=GERRIT_USER, cmd=cmd, cwd=path_name)
+                        user=GERRIT_USER, cmd=cmd, cwd=repo_path)
                 except Exception:
                     # branch does not exist, create it
                     ref = 'HEAD:refs/heads/%s' % branch
@@ -282,7 +282,7 @@ def create_projects(admin_username, admin_privkey, base_url,
                         ]
                     for cmd in cmds:
                         common.run_as_user(
-                            user=GERRIT_USER, cmd=cmd, cwd=path_name)
+                            user=GERRIT_USER, cmd=cmd, cwd=repo_path)
 
             gerrit_client.flush_cache()
 

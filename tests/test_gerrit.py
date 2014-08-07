@@ -22,8 +22,8 @@ class GerritTestCase(testtools.TestCase):
     def test_setup_gitreview(self, mock_log, mock_unit_get, mock_mkdtemp):
         mock_mkdtemp.return_value = self.tmpdir
         mock_unit_get.return_value = '10.0.0.1'
-
-        cmds = gerrit.setup_gitreview(self.tmpdir, 'openstack/neutron')
+        project = 'openstack/neutron.git'
+        cmds = gerrit.setup_gitreview(self.tmpdir, project)
 
         self.assertEquals([['git', 'add', '.gitreview'],
                            ['git', 'commit', '-a', '-m',
@@ -31,7 +31,7 @@ class GerritTestCase(testtools.TestCase):
                           cmds)
         with open(os.path.join(self.tmpdir, '.gitreview'), 'r') as fd:
             self.assertEqual(['[gerrit]\n', 'host=10.0.0.1\n', 'port=29418\n',
-                              'project=openstack/neutron'], fd.readlines())
+                              'project=%s' % (project)], fd.readlines())
 
     @mock.patch('tempfile.mkdtemp')
     @mock.patch('gerrit.unit_get')
@@ -41,12 +41,12 @@ class GerritTestCase(testtools.TestCase):
         mock_mkdtemp.return_value = self.tmpdir
         shutil.copy(os.path.join(gerrit.TEMPLATES, '.gitreview'), self.tmpdir)
         mock_unit_get.return_value = '10.0.0.1'
-
-        cmds = gerrit.setup_gitreview(self.tmpdir, 'openstack/neutron')
+        project = 'openstack/neutron.git'
+        cmds = gerrit.setup_gitreview(self.tmpdir, project)
 
         self.assertEquals([['git', 'commit', '-a', '-m',
                             'Configured git-review to point to 10.0.0.1']],
                           cmds)
         with open(os.path.join(self.tmpdir, '.gitreview'), 'r') as fd:
             self.assertEqual(['[gerrit]\n', 'host=10.0.0.1\n', 'port=29418\n',
-                              'project=openstack/neutron'], fd.readlines())
+                              'project=%s' % (project)], fd.readlines())
