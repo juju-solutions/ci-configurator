@@ -4,7 +4,6 @@ import os
 import re
 import subprocess
 import sys
-import shutil
 import tempfile
 import yaml
 
@@ -233,7 +232,6 @@ def setup_gitreview(path, repo):
 
     return cmds
 
-import sys
 
 def repo_is_initialised(url, branches):
     cmd = ['git', 'ls-remote', url]
@@ -260,6 +258,7 @@ def repo_is_initialised(url, branches):
 
     return False
 
+
 def create_projects(admin_username, admin_privkey, base_url, projects,
                     branches):
     """Globally create all projects and repositories, clone and push"""
@@ -282,13 +281,12 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
                 pass
 
             git_srv_path = os.path.join(GIT_PATH, name)
-            project_name = repo.partition('/')[2]
             repo_path = os.path.join(tmpdir, name.replace('/', ''))
             repo_url = 'https://%s/%s' % (base_url, repo)
             gerrit_remote_url = "%s/%s.git" % (GIT_PATH, repo)
 
             # Only continue if the repo has NOT been successfully initialised.
-            if self.repo_is_initialised(gerrit_remote_url, branches):
+            if repo_is_initialised(gerrit_remote_url, branches):
                 log("Repository '%s' already initialised - skipping" %
                     (git_srv_path), level=INFO)
                 continue
