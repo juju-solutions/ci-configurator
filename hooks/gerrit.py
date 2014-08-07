@@ -252,8 +252,9 @@ def create_projects(admin_username, admin_privkey, base_url,
 
             # successfully created project, push from git
             repo_path = os.path.join(tmpdir, name.replace('/', ''))
-            # clone and push
+
             repo_url = 'https://%s/%s' % (base_url, repo)
+            log("Cloning git repository '%s'" % (repo_url))
             cmd = ['git', 'clone', repo_url, repo_path]
             common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
 
