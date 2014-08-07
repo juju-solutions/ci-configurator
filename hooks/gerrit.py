@@ -8,11 +8,23 @@ from base64 import b64decode
 import common
 
 from charmhelpers.core.hookenv import (
-    log, relation_ids, relation_get, related_units, config,
-    WARNING, ERROR)
+    config,
+    log,
+    relation_ids,
+    relation_get,
+    related_units,
+    unit_get,
+    WARNING,
+    INFO,
+    ERROR
+)
 from charmhelpers.canonical_ci.gerrit import (
-    GerritClient, start_gerrit, stop_gerrit)
-from charmhelpers.canonical_ci import (cron)
+    GerritClient,
+    start_gerrit,
+    stop_gerrit
+)
+from charmhelpers.canonical_ci import cron
+from jinja2 import Template
 
 GERRIT_INIT_SCRIPT = '/etc/init.d/gerrit'
 GERRIT_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'gerrit')
@@ -28,6 +40,7 @@ WAR_PATH = '/home/gerrit2/gerrit-wars/gerrit.war'
 SITE_PATH = '/home/gerrit2/review_site'
 LOGS_PATH = SITE_PATH+'/logs'
 LAUNCHPAD_DIR = '/home/gerrit2/.launchpadlib'
+TEMPLATES = 'templates'
 
 
 def update_theme(theme_dest, static_dest):
@@ -183,6 +196,36 @@ def update_permissions(admin_username, admin_email, admin_privkey):
     return True
 
 
+def setup_gitreview(repo):
+    """
+    Configure .gitreview so that when user clones repo the default git-review
+    target is their CIaaS not upstream openstack.
+
+    :param repo: <project>/<os-project>
+
+    Returns list of commands to executed in the git repo to apply these
+    changes.
+    """
+    cmds = []
+    target = '.gitreview'
+    if not os.path.exists(target):
+        log("%s not found in %s repo" % (target, repo), level=INFO)
+        cmds.append(['git', 'add', target])
+
+    host = unit_get('private-address')
+
+    with open(os.path.join(TEMPLATES, target), 'r') as fd:
+        t = Template(fd.read())
+        rendered = t.render(repo=repo, host=host, port=SSH_PORT)
+
+    with open(target, 'w') as fd:
+        fd.write(rendered)
+
+    cmds.append(['git', 'commit', '-a', '-m',
+                 "Configured git-review to point to %s" % (host)])
+
+    return cmds
+
 # globally create all projects, clone and push
 def create_projects(admin_username, admin_privkey, base_url,
                     projects, branches):
@@ -208,11 +251,16 @@ def create_projects(admin_username, admin_privkey, base_url,
             repo_url = 'https://%s/%s' % (base_url, repo)
             cmd = ['git', 'clone', repo_url, path_name]
             common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
-            cmds = [
-                ['git', 'remote', 'add', 'gerrit', '%s/%s.git' %
-                 (GIT_PATH, repo)],
-                ['git', 'fetch', '--all']
-            ]
+
+            cmds = []
+
+            # Setup the .gitreview file to point to this repo by default (as
+            # opposed to upstream openstack).
+            cmds.append(setup_gitreview(path_name))
+
+            cmds.append(['git', 'remote', 'add', 'gerrit', '%s/%s.git' %
+                         (GIT_PATH, repo)])
+            cmds.append(['git', 'fetch', '--all'])
 
             for cmd in cmds:
                 common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=path_name)
