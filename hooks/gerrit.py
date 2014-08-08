@@ -411,12 +411,12 @@ def update_gerrit():
     restart_req = False
 
     restart_req = update_projects(rel_settings['admin_username'],
-                                  rel_settings['privkey_path'],
+                                  rel_settings['admin_privkey_path'],
                                   rel_settings['public_url'])
 
     restart_req = update_permissions(rel_settings['admin_username'],
                                      rel_settings['admin_email'],
-                                     rel_settings['privkey_path'])
+                                     rel_settings['admin_privkey_path'])
 
     restart_req = update_hooks(hooks_dir, rel_settings)
     restart_req = update_theme(theme_dir, static_dir)
