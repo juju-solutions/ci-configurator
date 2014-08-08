@@ -35,11 +35,11 @@ GROUPS_CONFIG_FILE = os.path.join(GERRIT_CONFIG_DIR, 'permissions/groups.yml')
 GIT_PATH = os.path.join('/srv', 'git')
 SSH_PORT = 29418
 GERRIT_USER = 'gerrit2'
-GERRIT_USER_HOME = os.path.join('/home', GERRIT_USER)
-WAR_PATH = os.path.join(GERRIT_USER_HOME, 'gerrit-wars', 'gerrit.war')
-SITE_PATH = os.path.join(GERRIT_USER_HOME, 'review_site')
+GERRIT_HOME = os.path.join('/home', GERRIT_USER)
+WAR_PATH = os.path.join(GERRIT_HOME, 'gerrit-wars', 'gerrit.war')
+SITE_PATH = os.path.join(GERRIT_HOME, 'review_site')
 LOGS_PATH = os.path.join(SITE_PATH, 'logs')
-LAUNCHPAD_DIR = os.path.join(GERRIT_USER_HOME, '.launchpadlib')
+LAUNCHPAD_DIR = os.path.join(GERRIT_HOME, '.launchpadlib')
 TEMPLATES = 'templates'
 
 
@@ -122,41 +122,35 @@ def update_permissions(admin_username, admin_email, admin_privkey):
             config('lp-schedule'), 'root', 'launchpad_sync', command)
 
     # parse groups file and create groups
-    gerrit_client = GerritClient(
-        host='localhost',
-        user=admin_username, port=SSH_PORT,
-        key_file=admin_privkey)
+    gerrit_client = GerritClient(host='localhost', user=admin_username,
+                                 port=SSH_PORT, key_file=admin_privkey)
 
-    groups_config = {}
     with open(GROUPS_CONFIG_FILE, 'r') as f:
         groups_config = yaml.load(f)
 
-    for group, teams in groups_config.items():
-        # create group
+    # Create group(s)
+    for group, _ in groups_config.items():
         gerrit_client.create_group(group)
 
-    # update git repo with permissions
+    # Update git repo with permissions
     log('Installing gerrit permissions from %s.' % PERMISSIONS_DIR)
     try:
         tmppath = tempfile.mkdtemp('', 'gerritperms')
         if tmppath:
-            subprocess.check_call(
-                ["chown", "%s:%s" % (GERRIT_USER, GERRIT_USER), tmppath])
+            cmd = ["chown", "%s:%s" % (GERRIT_USER, GERRIT_USER), tmppath]
+            subprocess.check_call(cmd)
             os.chmod(tmppath, 0774)
 
-            cmds = [
-                ['git', 'init'],
-                ['git', 'remote', 'add', 'repo',
-                 'ssh://%s@localhost:%s/All-Projects.git' %
-                 (admin_username, SSH_PORT)],
-                ['git', 'fetch', 'repo',
-                 'refs/meta/config:refs/remotes/origin/meta/config'],
-                ['git', 'checkout', 'meta/config']
-            ]
+            cmds = [['git', 'init'],
+                    ['git', 'remote', 'add', 'repo',
+                     ('ssh://%s@localhost:%s/All-Projects.git' %
+                      (admin_username, SSH_PORT))],
+                    ['git', 'fetch', 'repo',
+                     'refs/meta/config:refs/remotes/origin/meta/config'],
+                    ['git', 'checkout', 'meta/config']]
 
             for cmd in cmds:
-                common.run_as_user(
-                    user=GERRIT_USER, cmd=cmd, cwd=tmppath)
+                common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmppath)
 
             common.sync_dir(os.path.join(PERMISSIONS_DIR, 'All-Projects'),
                             tmppath)
@@ -164,10 +158,9 @@ def update_permissions(admin_username, admin_email, admin_privkey):
 
             # generate groups file
             query = 'SELECT name, group_uuid FROM account_groups'
-            cmd = ['java', '-jar', WAR_PATH,
-                   'gsql', '-d', SITE_PATH, '-c', query]
+            cmd = ['java', '-jar', WAR_PATH, 'gsql', '-d', SITE_PATH, '-c',
+                   query]
             result = subprocess.check_output(cmd)
-
             if result:
                 # parse file and generate groups
                 output = result.splitlines()
@@ -176,19 +169,18 @@ def update_permissions(admin_username, admin_email, admin_privkey):
                         # split between name and id
                         data = item.split('|')
                         if len(data) == 2:
-                            f.write(
-                                '%s\t%s\n' % (data[1].strip(), data[0].strip())
-                            )
+                            group_cfg = ('%s\t%s\n' %
+                                         (data[1].strip(), data[0].strip()))
+                            f.write(group_cfg)
 
-                cmds = [
-                    ['git', 'config', '--global', 'user.name', admin_username],
-                    ['git', 'config', '--global', 'user.email', admin_email],
-                    ['git', 'commit', '-a', '-m', '"Initial permissions"'],
-                    ['git', 'push', 'repo', 'meta/config:meta/config']
-                ]
+                cmds = [['git', 'config', '--global', 'user.name',
+                         admin_username],
+                        ['git', 'config', '--global', 'user.email',
+                         admin_email],
+                        ['git', 'commit', '-a', '-m', '"Initial permissions"'],
+                        ['git', 'push', 'repo', 'meta/config:meta/config']]
                 for cmd in cmds:
-                    common.run_as_user(
-                        user=GERRIT_USER, cmd=cmd, cwd=tmppath)
+                    common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmppath)
             else:
                 log('Error querying for groups', level=ERROR)
                 return False
@@ -373,59 +365,79 @@ def update_projects(admin_username, admin_email, privkey_path, public_url):
     return True
 
 
-def update_gerrit():
-    if not relation_ids('gerrit-configurator'):
-        log('*** No relation to gerrit, skipping update.')
-        return
+def get_relation_settings(name, keys):
+    """Fetch required relation settings.
 
-    required_keys = ['admin_username', 'admin_email', 'admin_privkey_path',
-                     'review_site_dir', 'public_url']
+    If any setting is unset ('' or None) we return None.
 
+    :param name: Relation name.
+    :param keys: Setting keys to look for.
+    """
     # NOTE: we currrently only support one gerrit unit.
-    rel_settings = {}
+    settings = {}
     null_values = []
     try:
-        for rid in relation_ids('gerrit-configurator'):
+        for rid in relation_ids(name):
             for unit in related_units(rid):
-                for key in required_keys:
-                    rel_settings[key] = relation_get(key, rid=rid, unit=unit)
-                    if not rel_settings[key]:
+                for key in keys:
+                    settings[key] = relation_get(key, rid=rid, unit=unit)
+                    if not settings[key]:
                         null_values.append(key)
     except Exception as exc:
-        log('failed to get gerrit relation data (%s).' % (exc), WARNING)
+        log('Failed to get gerrit relation data (%s).' % (exc), level=WARNING)
         return
 
     if null_values:
         log("Missing values '%s' in gerrit relation - skipping permissions "
             "refresh." % (','.join(null_values)), level=WARNING)
-        return False
+        return
+
+    return settings
+
+
+def update_gerrit():
+    rel_name = 'gerrit-configurator'
+    if not relation_ids(rel_name):
+        log('*** No relation to gerrit, skipping update.')
+        return
 
     log("*** Updating gerrit.")
     if not os.path.isdir(GERRIT_CONFIG_DIR):
         log('Could not find gerrit config directory at expected location, '
-            'skipping gerrit update (%s)' % GERRIT_CONFIG_DIR)
+            'skipping gerrit update (%s)' % GERRIT_CONFIG_DIR, level=WARNING)
         return
+
+    required_keys = ['admin_username', 'admin_email', 'admin_privkey_path',
+                     'review_site_dir', 'public_url']
+    rel_settings = get_relation_settings(rel_name, required_keys)
+    if not rel_settings:
+        log("Unable to get relation settings for %s" % (rel_name))
+        return
+
+    review_site_dir = rel_settings['review_site_dir']
+    admin_username = rel_settings['admin_username']
+    admin_email = rel_settings['admin_email']
+    admin_privkey_path = rel_settings['admin_privkey_path']
+    public_url = rel_settings['public_url']
+
+    # Any of the following operations may require a restart.
+    restart_req = []
+
+    restart_req.append(update_projects(admin_username, admin_email,
+                                       admin_privkey_path, public_url))
+
+    restart_req.append(update_permissions(admin_username, admin_email,
+                                          admin_privkey_path))
 
     # Installation location of hooks and theme, based on review_site path
     # exported from principle
-    hooks_dir = os.path.join(rel_settings['review_site_dir'], 'hooks')
-    theme_dir = os.path.join(rel_settings['review_site_dir'], 'etc')
-    static_dir = os.path.join(rel_settings['review_site_dir'], 'static')
+    hooks_dir = os.path.join(review_site_dir, 'hooks')
+    theme_dir = os.path.join(review_site_dir, 'etc')
+    static_dir = os.path.join(review_site_dir, 'static')
 
-    restart_req = False
+    restart_req.append(update_hooks(hooks_dir, rel_settings))
+    restart_req.append(update_theme(theme_dir, static_dir))
 
-    restart_req = update_projects(rel_settings['admin_username'],
-                                  rel_settings['admin_email'],
-                                  rel_settings['admin_privkey_path'],
-                                  rel_settings['public_url'])
-
-    restart_req = update_permissions(rel_settings['admin_username'],
-                                     rel_settings['admin_email'],
-                                     rel_settings['admin_privkey_path'])
-
-    restart_req = update_hooks(hooks_dir, rel_settings)
-    restart_req = update_theme(theme_dir, static_dir)
-
-    if restart_req:
+    if any(restart_req):
         stop_gerrit()
         start_gerrit()
