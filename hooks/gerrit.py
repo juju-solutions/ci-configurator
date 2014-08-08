@@ -271,8 +271,8 @@ def repo_is_initialised(url, branches):
     return False
 
 
-def create_projects(admin_username, admin_privkey, base_url, projects,
-                    branches, public_url, tmpdir):
+def create_projects(admin_username, admin_email, admin_privkey, base_url,
+                    projects, branches, public_url, tmpdir):
     """Globally create all projects and repositories, clone and push"""
     cmd = ["chown", "%s:%s" % (GERRIT_USER, GERRIT_USER), tmpdir]
     subprocess.check_call(cmd)
@@ -301,16 +301,20 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
                     (git_srv_path), level=INFO)
                 continue
 
+            # Git config may not have been set yet so just in case.
+            cmds = [['git', 'config', '--global', 'user.name', admin_username],
+                    ['git', 'config', '--global', 'user.email', admin_email]]
+
             log("Cloning git repository '%s'" % (repo_url))
-            cmd = ['git', 'clone', repo_url, repo_path]
-            common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
+            cmds += ['git', 'clone', repo_url, repo_path]
+            for cmd in cmds:
+                common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
 
             # Setup the .gitreview file to point to this repo by default (as
             # opposed to upstream openstack).
             cmds = setup_gitreview(repo_path, name, public_url)
 
             cmds.append(['git', 'remote', 'add', 'gerrit', gerrit_remote_url])
-            # TODO: think this might be redundant now
             cmds.append(['git', 'fetch', '--all'])
 
             for cmd in cmds:
@@ -340,7 +344,7 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
         raise exc
 
 
-def update_projects(admin_username, privkey_path, public_url):
+def update_projects(admin_username, admin_email, privkey_path, public_url):
     """Install initial projects and branches based on config."""
     if not os.path.isfile(PROJECTS_CONFIG_FILE):
         log("Gerrit projects directory '%s' not found - skipping permissions "
@@ -359,9 +363,9 @@ def update_projects(admin_username, privkey_path, public_url):
 
     tmpdir = tempfile.mkdtemp()
     try:
-        create_projects(admin_username, privkey_path, gerrit_cfg['base_url'],
-                        gerrit_cfg['projects'], gerrit_cfg['branches'],
-                        public_url, tmpdir)
+        create_projects(admin_username, admin_email, privkey_path,
+                        gerrit_cfg['base_url'], gerrit_cfg['projects'],
+                        gerrit_cfg['branches'], public_url, tmpdir)
     finally:
         # Always cleanup
         shutil.rmtree(tmpdir)
@@ -411,6 +415,7 @@ def update_gerrit():
     restart_req = False
 
     restart_req = update_projects(rel_settings['admin_username'],
+                                  rel_settings['admin_email'],
                                   rel_settings['admin_privkey_path'],
                                   rel_settings['public_url'])
 
