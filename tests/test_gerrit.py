@@ -24,39 +24,52 @@ class GerritTestCase(testtools.TestCase):
         shutil.rmtree(self.tmpdir)
 
     @mock.patch('tempfile.mkdtemp')
-    @mock.patch('gerrit.unit_get')
     @mock.patch('gerrit.log')
-    def test_setup_gitreview(self, mock_log, mock_unit_get, mock_mkdtemp):
+    def test_setup_gitreview(self, mock_log, mock_mkdtemp):
         mock_mkdtemp.return_value = self.tmpdir
-        mock_unit_get.return_value = '10.0.0.1'
         project = 'openstack/neutron.git'
-        cmds = gerrit.setup_gitreview(self.tmpdir, project)
+        host = 'http://foo.bar'
+        cmds = gerrit.setup_gitreview(self.tmpdir, project, host)
 
         self.assertEquals([['git', 'add', '.gitreview'],
                            ['git', 'commit', '-a', '-m',
-                            'Configured git-review to point to 10.0.0.1']],
+                            'Configured git-review to point to %s' % (host)]],
                           cmds)
         with open(os.path.join(self.tmpdir, '.gitreview'), 'r') as fd:
-            self.assertEqual(['[gerrit]\n', 'host=10.0.0.1\n', 'port=29418\n',
-                              'project=%s\n' % (project)], fd.readlines())
+            self.assertEqual(['[gerrit]\n', 'host=%s\n' % (host),
+                              'port=29418\n', 'project=%s\n' % (project)],
+                             fd.readlines())
 
     @mock.patch('tempfile.mkdtemp')
-    @mock.patch('gerrit.unit_get')
     @mock.patch('gerrit.log')
-    def test_setup_gitreview_already_exists(self, mock_log, mock_unit_get,
-                                            mock_mkdtemp):
+    def test_setup_gitreview_already_exists(self, mock_log, mock_mkdtemp):
         mock_mkdtemp.return_value = self.tmpdir
         shutil.copy(os.path.join(gerrit.TEMPLATES, '.gitreview'), self.tmpdir)
-        mock_unit_get.return_value = '10.0.0.1'
         project = 'openstack/neutron.git'
-        cmds = gerrit.setup_gitreview(self.tmpdir, project)
+        host = 'http://foo.bar'
+        cmds = gerrit.setup_gitreview(self.tmpdir, project, 'http://foo.bar')
 
         self.assertEquals([['git', 'commit', '-a', '-m',
-                            'Configured git-review to point to 10.0.0.1']],
+                            'Configured git-review to point to %s' % (host)]],
                           cmds)
         with open(os.path.join(self.tmpdir, '.gitreview'), 'r') as fd:
-            self.assertEqual(['[gerrit]\n', 'host=10.0.0.1\n', 'port=29418\n',
-                              'project=%s\n' % (project)], fd.readlines())
+            self.assertEqual(['[gerrit]\n', 'host=%s\n' % (host),
+                              'port=29418\n', 'project=%s\n' % (project)],
+                             fd.readlines())
+
+    @mock.patch('tempfile.mkdtemp')
+    @mock.patch('gerrit.log')
+    def test_setup_gitreview_public_url_none(self, mock_log, mock_mkdtemp):
+        mock_mkdtemp.return_value = self.tmpdir
+        shutil.copy(os.path.join(gerrit.TEMPLATES, '.gitreview'), self.tmpdir)
+        project = 'openstack/neutron.git'
+        host = 'http://foo.bar'
+        try:
+            gerrit.setup_gitreview(self.tmpdir, project, None)
+        except Exception as exc:
+            self.assertIsInstance(exc, gerrit.GerritConfigurationException)
+        else:
+            raise Exception("Did not get expected exception in unit test")
 
     @mock.patch('subprocess.check_output')
     @mock.patch('gerrit.log')

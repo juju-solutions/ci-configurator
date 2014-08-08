@@ -13,7 +13,6 @@ from charmhelpers.core.hookenv import (
     relation_ids,
     relation_get,
     related_units,
-    unit_get,
     WARNING,
     INFO,
     ERROR
@@ -42,6 +41,10 @@ SITE_PATH = os.path.join(GERRIT_USER_HOME, 'review_site')
 LOGS_PATH = os.path.join(SITE_PATH, 'logs')
 LAUNCHPAD_DIR = os.path.join(GERRIT_USER_HOME, '.launchpadlib')
 TEMPLATES = 'templates'
+
+
+class GerritConfigurationException(Exception):
+    pass
 
 
 def update_theme(theme_dest, static_dest):
@@ -199,12 +202,13 @@ def update_permissions(admin_username, admin_email, admin_privkey):
     return True
 
 
-def setup_gitreview(path, repo):
+def setup_gitreview(path, repo, public_url):
     """
     Configure .gitreview so that when user clones repo the default git-review
     target is their CIaaS not upstream openstack.
 
     :param repo: <project>/<os-project>
+    :param public_url: public url of Gerrit git repository
 
     Returns list of commands to executed in the git repo to apply these
     changes.
@@ -213,23 +217,25 @@ def setup_gitreview(path, repo):
     git_review_cfg = '.gitreview'
     target = os.path.join(path, git_review_cfg)
 
+    if not public_url:
+        raise GerritConfigurationException("public_url is None - unable to "
+                                           "configure %s" % (git_review_cfg))
+
     log("Configuring %s" % (target))
 
     if not os.path.exists(target):
         log("%s not found in %s repo" % (target, repo), level=INFO)
         cmds.append(['git', 'add', git_review_cfg])
 
-    host = unit_get('private-address')
-
     with open(os.path.join(TEMPLATES, git_review_cfg), 'r') as fd:
         t = Template(fd.read())
-        rendered = t.render(repo=repo, host=host, port=SSH_PORT)
+        rendered = t.render(repo=repo, host=public_url, port=SSH_PORT)
 
     with open(target, 'w') as fd:
         fd.write(rendered)
 
     cmds.append(['git', 'commit', '-a', '-m',
-                 "Configured git-review to point to %s" % (host)])
+                 "Configured git-review to point to %s" % (public_url)])
 
     return cmds
 
@@ -266,7 +272,7 @@ def repo_is_initialised(url, branches):
 
 
 def create_projects(admin_username, admin_privkey, base_url, projects,
-                    branches, tmpdir):
+                    branches, public_url, tmpdir):
     """Globally create all projects and repositories, clone and push"""
     cmd = ["chown", "%s:%s" % (GERRIT_USER, GERRIT_USER), tmpdir]
     subprocess.check_call(cmd)
@@ -274,7 +280,6 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
 
     gerrit_client = GerritClient(host='localhost', user=admin_username,
                                  port=SSH_PORT, key_file=admin_privkey)
-
     try:
         for project in projects:
             name, repo = project.itervalues()
@@ -302,7 +307,7 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
 
             # Setup the .gitreview file to point to this repo by default (as
             # opposed to upstream openstack).
-            cmds = setup_gitreview(repo_path, name)
+            cmds = setup_gitreview(repo_path, name, public_url)
 
             cmds.append(['git', 'remote', 'add', 'gerrit', gerrit_remote_url])
             # TODO: think this might be redundant now
@@ -329,14 +334,13 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
                                            cwd=repo_path)
 
             gerrit_client.flush_cache()
-
     except Exception as exc:
         msg = ('project setup failed (%s)' % str(exc))
         log(msg, ERROR)
         raise exc
 
 
-def update_projects(admin_username, privkey_path):
+def update_projects(admin_username, privkey_path, public_url):
     """Install initial projects and branches based on config."""
     if not os.path.isfile(PROJECTS_CONFIG_FILE):
         log("Gerrit projects directory '%s' not found - skipping permissions "
@@ -356,7 +360,8 @@ def update_projects(admin_username, privkey_path):
     tmpdir = tempfile.mkdtemp()
     try:
         create_projects(admin_username, privkey_path, gerrit_cfg['base_url'],
-                        gerrit_cfg['projects'], gerrit_cfg['branches'], tmpdir)
+                        gerrit_cfg['projects'], gerrit_cfg['branches'],
+                        public_url, tmpdir)
     finally:
         # Always cleanup
         shutil.rmtree(tmpdir)
@@ -381,7 +386,8 @@ def update_gerrit():
                 'privkey_path': relation_get('admin_privkey_path',
                                              rid=rid, unit=unit),
                 'review_site_root': relation_get('review_site_dir',
-                                                 rid=rid, unit=unit)
+                                                 rid=rid, unit=unit),
+                'public_url': relation_get('public_url', rid=rid, unit=unit)
             }
 
     if not rel_settings:
@@ -407,11 +413,15 @@ def update_gerrit():
     static_dir = os.path.join(rel_settings['review_site_root'], 'static')
 
     restart_req = False
+
     restart_req = update_projects(rel_settings['admin_username'],
-                                  rel_settings['privkey_path'])
+                                  rel_settings['privkey_path'],
+                                  rel_settings['public_url'])
+
     restart_req = update_permissions(rel_settings['admin_username'],
                                      rel_settings['admin_email'],
                                      rel_settings['privkey_path'])
+
     restart_req = update_hooks(hooks_dir, rel_settings)
     restart_req = update_theme(theme_dir, static_dir)
 
