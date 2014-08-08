@@ -372,7 +372,6 @@ def get_relation_settings(name, keys):
     :param name: Relation name.
     :param keys: Setting keys to look for.
     """
-    # NOTE: we currrently only support one gerrit unit.
     settings = {}
     null_values = []
     try:
