@@ -2,8 +2,8 @@ from base64 import b64decode
 import common
 import os
 import re
+import shutil
 import subprocess
-import sys
 import tempfile
 import yaml
 
@@ -127,6 +127,7 @@ def update_permissions(admin_username, admin_email, admin_privkey):
     groups_config = {}
     with open(GROUPS_CONFIG_FILE, 'r') as f:
         groups_config = yaml.load(f)
+
     for group, teams in groups_config.items():
         # create group
         gerrit_client.create_group(group)
@@ -265,9 +266,8 @@ def repo_is_initialised(url, branches):
 
 
 def create_projects(admin_username, admin_privkey, base_url, projects,
-                    branches):
+                    branches, tmpdir):
     """Globally create all projects and repositories, clone and push"""
-    tmpdir = tempfile.mkdtemp()
     cmd = ["chown", "%s:%s" % (GERRIT_USER, GERRIT_USER), tmpdir]
     subprocess.check_call(cmd)
     os.chmod(tmpdir, 0774)
@@ -331,30 +331,37 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
             gerrit_client.flush_cache()
 
     except Exception as e:
-        log('Error creating project branch: %s' % str(e), ERROR)
-        sys.exit(1)
+        msg = 'project setup failed (%s)' % str(e), ERROR
+        log(msg)
+        raise Exception(msg)
 
 
-# installs initial projects and branches based on config
 def update_projects(admin_username, privkey_path):
+    """Install initial projects and branches based on config."""
     if not os.path.isfile(PROJECTS_CONFIG_FILE):
-        log('Gerrit projects directory not found @ %s, '
-            'skipping permissions refresh.' %
-            PROJECTS_CONFIG_FILE, level=WARNING)
+        log("Gerrit projects directory '%s' not found - skipping permissions "
+            "refresh." % (PROJECTS_CONFIG_FILE), level=WARNING)
         return False
 
-    # parse yaml file to grab config
+    # Parse yaml file to grab config
     with open(PROJECTS_CONFIG_FILE, 'r') as f:
-        config = yaml.load(f)
+        gerrit_cfg = yaml.load(f)
 
     for opt in ['base_url', 'branches', 'projects']:
-        if opt not in config:
-            log('Gerrit projects config not found', level=WARNING)
-            break
+        if opt not in gerrit_cfg:
+            log("Required gerrit config '%s' not found in %s - skipping "
+                "create_projects" % (opt, PROJECTS_CONFIG_FILE), level=WARNING)
+            return False
 
-    if 'projects' in config:
-        create_projects(admin_username, privkey_path, config['base_url'],
-                        config['projects'], config['branches'])
+    tmpdir = tempfile.mkdtemp()
+    try:
+        create_projects(admin_username, privkey_path, gerrit_cfg['base_url'],
+                        gerrit_cfg['projects'], gerrit_cfg['branches'], tmpdir)
+    finally:
+        # Always cleanup
+        shutil.rmtree(tmpdir)
+
+    return True
 
 
 def update_gerrit():
