@@ -33,7 +33,8 @@ class GerritTestCase(testtools.TestCase):
 
         self.assertEquals([['git', 'add', '.gitreview'],
                            ['git', 'commit', '-a', '-m',
-                            'Configured git-review to point to %s' % (host)]],
+                            "Configured git-review to point to '%s'" %
+                            (host)]],
                           cmds)
         with open(os.path.join(self.tmpdir, '.gitreview'), 'r') as fd:
             self.assertEqual(['[gerrit]\n', 'host=%s\n' % (host),
@@ -50,7 +51,8 @@ class GerritTestCase(testtools.TestCase):
         cmds = gerrit.setup_gitreview(self.tmpdir, project, 'http://foo.bar')
 
         self.assertEquals([['git', 'commit', '-a', '-m',
-                            'Configured git-review to point to %s' % (host)]],
+                            "Configured git-review to point to '%s'" %
+                            (host)]],
                           cmds)
         with open(os.path.join(self.tmpdir, '.gitreview'), 'r') as fd:
             self.assertEqual(['[gerrit]\n', 'host=%s\n' % (host),
@@ -59,17 +61,22 @@ class GerritTestCase(testtools.TestCase):
 
     @mock.patch('tempfile.mkdtemp')
     @mock.patch('gerrit.log')
-    def test_setup_gitreview_public_url_none(self, mock_log, mock_mkdtemp):
-        mock_mkdtemp.return_value = self.tmpdir
-        shutil.copy(os.path.join(gerrit.TEMPLATES, '.gitreview'), self.tmpdir)
-        project = 'openstack/neutron.git'
-        host = 'http://foo.bar'
+    def test_get_gerrit_hostname_public_url_none(self, mock_log, mock_mkdtemp):
         try:
-            gerrit.setup_gitreview(self.tmpdir, project, None)
+            gerrit.get_gerrit_hostname(None)
         except Exception as exc:
             self.assertIsInstance(exc, gerrit.GerritConfigurationException)
         else:
             raise Exception("Did not get expected exception in unit test")
+
+    @mock.patch('tempfile.mkdtemp')
+    @mock.patch('gerrit.log')
+    def test_get_gerrit_hostname_public_url(self, mock_log, mock_mkdtemp):
+        mock_mkdtemp.return_value = self.tmpdir
+        shutil.copy(os.path.join(gerrit.TEMPLATES, '.gitreview'), self.tmpdir)
+        for public_url in ['http://foo.bar', 'ssh://foo.bar/', 'foo.bar']:
+            host = gerrit.get_gerrit_hostname(public_url)
+            self.assertEqual(host, 'foo.bar')
 
     @mock.patch('subprocess.check_output')
     @mock.patch('gerrit.log')

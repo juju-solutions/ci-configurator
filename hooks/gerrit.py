@@ -5,6 +5,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import urlparse
 import yaml
 
 from charmhelpers.core.hookenv import (
@@ -193,13 +194,13 @@ def update_permissions(admin_username, admin_email, admin_privkey):
     return True
 
 
-def setup_gitreview(path, repo, public_url):
+def setup_gitreview(path, repo, host):
     """
     Configure .gitreview so that when user clones repo the default git-review
     target is their CIaaS not upstream openstack.
 
     :param repo: <project>/<os-project>
-    :param public_url: public url of Gerrit git repository
+    :param host: hostname/address of Gerrit git repository
 
     Returns list of commands to executed in the git repo to apply these
     changes.
@@ -207,10 +208,6 @@ def setup_gitreview(path, repo, public_url):
     cmds = []
     git_review_cfg = '.gitreview'
     target = os.path.join(path, git_review_cfg)
-
-    if not public_url:
-        raise GerritConfigurationException("public_url is None - unable to "
-                                           "configure %s" % (git_review_cfg))
 
     log("Configuring %s" % (target))
 
@@ -220,12 +217,12 @@ def setup_gitreview(path, repo, public_url):
 
     with open(os.path.join(TEMPLATES, git_review_cfg), 'r') as fd:
         t = Template(fd.read())
-        rendered = t.render(repo=repo, host=public_url, port=SSH_PORT)
+        rendered = t.render(repo=repo, host=host, port=SSH_PORT)
 
     with open(target, 'w') as fd:
         fd.write(rendered)
 
-    msg = str("Configured git-review to point to '%s'" % (public_url))
+    msg = str("Configured git-review to point to '%s'" % (host))
     cmds.append(['git', 'commit', '-a', '-m', msg])
 
     return cmds
@@ -260,6 +257,18 @@ def repo_is_initialised(url, branches):
         return True
 
     return False
+
+
+def get_gerrit_hostname(public_url):
+    if not public_url:
+        raise GerritConfigurationException("public_url is None")
+
+    host = urlparse.urlsplit(public_url).hostname
+    if host:
+        return host
+
+    # If split does not yield a hostname, public_url is probably a hostname.
+    return public_url
 
 
 def create_projects(admin_username, admin_email, admin_privkey, base_url,
@@ -297,13 +306,14 @@ def create_projects(admin_username, admin_email, admin_privkey, base_url,
                     ['git', 'config', '--global', 'user.email', admin_email]]
 
             log("Cloning git repository '%s'" % (repo_url))
-            cmds += ['git', 'clone', repo_url, repo_path]
+            cmds.append(['git', 'clone', repo_url, repo_path])
             for cmd in cmds:
                 common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmpdir)
 
             # Setup the .gitreview file to point to this repo by default (as
             # opposed to upstream openstack).
-            cmds = setup_gitreview(repo_path, name, public_url)
+            host = get_gerrit_hostname(public_url)
+            cmds = setup_gitreview(repo_path, name, host)
 
             cmds.append(['git', 'remote', 'add', 'gerrit', gerrit_remote_url])
             cmds.append(['git', 'fetch', '--all'])

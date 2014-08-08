@@ -68,11 +68,12 @@ clean:
 	@$(RM) -rf $(SOURCEDEPS_DIR)/*
 
 lint:
-	@flake8 --exclude hooks/charmhelpers,hooks/lib/ hooks
+	@flake8 --exclude hooks/charmhelpers,hooks/lib/ hooks tests
 
 sync:
 	@charm-helper-sync -c charm-helpers.yaml
 
-
+test:
+	@nosetests tests
 
 .PHONY: revision proof installdeps
