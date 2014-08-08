@@ -381,12 +381,12 @@ def update_gerrit():
     rel_settings = {}
     null_values = []
     try:
-        rid = relation_ids('gerrit-configurator')[0]
-        unit = related_units(rid)[0]
-        for key in required_keys:
-            rel_settings[key] = relation_get(key, rid=rid, unit=unit)
-            if not rel_settings[key]:
-                null_values.append(key)
+        for rid in relation_ids('gerrit-configurator'):
+            for unit in related_units(rid):
+                for key in required_keys:
+                    rel_settings[key] = relation_get(key, rid=rid, unit=unit)
+                    if not rel_settings[key]:
+                        null_values.append(key)
     except Exception as exc:
         log('failed to get gerrit relation data (%s).' % (exc), WARNING)
         return
@@ -402,7 +402,7 @@ def update_gerrit():
             'skipping gerrit update (%s)' % GERRIT_CONFIG_DIR)
         return
 
-    # installation location of hooks and theme, based on review_site path
+    # Installation location of hooks and theme, based on review_site path
     # exported from principle
     hooks_dir = os.path.join(rel_settings['review_site_dir'], 'hooks')
     theme_dir = os.path.join(rel_settings['review_site_dir'], 'etc')
