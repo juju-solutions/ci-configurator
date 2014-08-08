@@ -374,30 +374,26 @@ def update_gerrit():
         log('*** No relation to gerrit, skipping update.')
         return
 
+    required_keys = ['admin_username', 'admin_email', 'admin_privkey_path',
+                     'review_site_dir', 'public_url']
+
+    # NOTE: we currrently only support one gerrit unit.
     rel_settings = {}
-
-    for rid in relation_ids('gerrit-configurator'):
-        for unit in related_units(rid):
-            rel_settings = {
-                'admin_username': relation_get('admin_username',
-                                               rid=rid, unit=unit),
-                'admin_email': relation_get('admin_email',
-                                            rid=rid, unit=unit),
-                'privkey_path': relation_get('admin_privkey_path',
-                                             rid=rid, unit=unit),
-                'review_site_root': relation_get('review_site_dir',
-                                                 rid=rid, unit=unit),
-                'public_url': relation_get('public_url', rid=rid, unit=unit)
-            }
-
-    if not rel_settings:
-        log('Found no relation data set by gerrit, skipping update.')
+    null_values = []
+    try:
+        rid = relation_ids('gerrit-configurator')[0]
+        unit = related_units(rid)[0]
+        for key in required_keys:
+            rel_settings[key] = relation_get(key, rid=rid, unit=unit)
+            if not rel_settings[key]:
+                null_values.append(key)
+    except Exception as exc:
+        log('failed to get gerrit relation data (%s).' % (exc), WARNING)
         return
 
-    if (None in rel_settings.itervalues() or
-       '' in rel_settings.itervalues()):
-        log('Username or private key path not set, skipping permissions '
-            'refresh.', level=WARNING)
+    if null_values:
+        log("Missing values '%s' in gerrit relation - skipping permissions "
+            "refresh." % (','.join(null_values)), level=WARNING)
         return False
 
     log("*** Updating gerrit.")
