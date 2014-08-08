@@ -141,15 +141,14 @@ def update_permissions(admin_username, admin_email, admin_privkey):
             subprocess.check_call(cmd)
             os.chmod(tmppath, 0774)
 
-            cmds = [['git', 'init'],
-                    ['git', 'remote', 'add', 'repo',
-                     ('ssh://%s@localhost:%s/All-Projects.git' %
-                      (admin_username, SSH_PORT))],
-                    ['git', 'fetch', 'repo',
-                     'refs/meta/config:refs/remotes/origin/meta/config'],
-                    ['git', 'checkout', 'meta/config']]
+            repo_url = ('ssh://%s@localhost:%s/All-Projects.git' %
+                        (admin_username, SSH_PORT))
+            config_ref = 'refs/meta/config:refs/remotes/origin/meta/config'
 
-            for cmd in cmds:
+            for cmd in [['git', 'init'],
+                        ['git', 'remote', 'add', 'repo', repo_url],
+                        ['git', 'fetch', 'repo', config_ref],
+                        ['git', 'checkout', 'meta/config']]:
                 common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmppath)
 
             common.sync_dir(os.path.join(PERMISSIONS_DIR, 'All-Projects'),
@@ -182,14 +181,14 @@ def update_permissions(admin_username, admin_email, admin_privkey):
                 for cmd in cmds:
                     common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmppath)
             else:
-                log('Error querying for groups', level=ERROR)
+                log('Failed to query gerrit db for groups', level=ERROR)
                 return False
         else:
-            log('Error creating permissions temporary directory', level=ERROR)
+            log('Failed to create permissions temporary directory',
+                level=ERROR)
             return False
     except Exception as e:
-        log('Error creating permissions: %s. '
-            'Skipping it' % str(e), level=ERROR)
+        log('Failed to create permissions: %s' % str(e), level=ERROR)
 
     return True
 
@@ -226,8 +225,8 @@ def setup_gitreview(path, repo, public_url):
     with open(target, 'w') as fd:
         fd.write(rendered)
 
-    cmds.append(['git', 'commit', '-a', '-m',
-                 "Configured git-review to point to %s" % (public_url)])
+    msg = str("Configured git-review to point to '%s'" % (public_url))
+    cmds.append(['git', 'commit', '-a', '-m', msg])
 
     return cmds
 
