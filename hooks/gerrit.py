@@ -330,10 +330,10 @@ def create_projects(admin_username, admin_privkey, base_url, projects,
 
             gerrit_client.flush_cache()
 
-    except Exception as e:
-        msg = 'project setup failed (%s)' % str(e), ERROR
-        log(msg)
-        raise Exception(msg)
+    except Exception as exc:
+        msg = ('project setup failed (%s)' % str(exc))
+        log(msg, ERROR)
+        raise exc
 
 
 def update_projects(admin_username, privkey_path):
