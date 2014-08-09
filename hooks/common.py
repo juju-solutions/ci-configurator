@@ -9,6 +9,7 @@ from charmhelpers.core.hookenv import charm_dir, config, log, ERROR
 
 PACKAGES = [
     'bzr',
+    'python-jinja2'
 ]
 
 CI_USER = 'ci'
