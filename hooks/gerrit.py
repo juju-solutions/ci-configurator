@@ -273,20 +273,24 @@ def repo_is_initialised(url, branches):
     return False
 
 
-def get_gerrit_hostname(public_url):
-    if not public_url:
-        raise GerritConfigurationException("public_url is None")
+def get_gerrit_hostname(url):
+    """Parse url to return just hostname part. Url may be IP address or FQDN.
 
-    host = urlparse.urlsplit(public_url).hostname
+    Returns hostname.
+    """
+    if not url:
+        raise GerritConfigurationException("url is None")
+
+    host = urlparse.urlsplit(url).hostname
     if host:
         return host
 
-    # If split does not yield a hostname, public_url is probably a hostname.
-    return public_url
+    # If split does not yield a hostname, url is probably a hostname.
+    return url
 
 
 def create_projects(admin_username, admin_email, admin_privkey, base_url,
-                    projects, branches, public_url, tmpdir):
+                    projects, branches, git_host, tmpdir):
     """Globally create all projects and repositories, clone and push"""
     cmd = ["chown", "%s:%s" % (GERRIT_USER, GERRIT_USER), tmpdir]
     subprocess.check_call(cmd)
@@ -326,7 +330,7 @@ def create_projects(admin_username, admin_email, admin_privkey, base_url,
 
             # Setup the .gitreview file to point to this repo by default (as
             # opposed to upstream openstack).
-            host = get_gerrit_hostname(public_url)
+            host = get_gerrit_hostname(git_host)
             cmds = setup_gitreview(repo_path, name, host)
 
             cmds.append(['git', 'remote', 'add', 'gerrit', gerrit_remote_url])
@@ -359,7 +363,7 @@ def create_projects(admin_username, admin_email, admin_privkey, base_url,
         raise exc
 
 
-def update_projects(admin_username, admin_email, privkey_path, public_url):
+def update_projects(admin_username, admin_email, privkey_path, git_host):
     """Install initial projects and branches based on config."""
     if not os.path.isfile(PROJECTS_CONFIG_FILE):
         log("Gerrit projects directory '%s' not found - skipping permissions "
@@ -380,7 +384,7 @@ def update_projects(admin_username, admin_email, privkey_path, public_url):
     try:
         create_projects(admin_username, admin_email, privkey_path,
                         gerrit_cfg['base_url'], gerrit_cfg['projects'],
-                        gerrit_cfg['branches'], public_url, tmpdir)
+                        gerrit_cfg['branches'], git_host, tmpdir)
     finally:
         # Always cleanup
         shutil.rmtree(tmpdir)
@@ -430,7 +434,7 @@ def update_gerrit():
         return
 
     required_keys = ['admin_username', 'admin_email', 'admin_privkey_path',
-                     'review_site_dir', 'public_url']
+                     'review_site_dir', 'git_host']
     rel_settings = get_relation_settings(rel_name, required_keys)
     if not rel_settings:
         log("Unable to get relation settings for %s" % (rel_name))
@@ -440,13 +444,13 @@ def update_gerrit():
     admin_username = rel_settings['admin_username']
     admin_email = rel_settings['admin_email']
     admin_privkey_path = rel_settings['admin_privkey_path']
-    public_url = rel_settings['public_url']
+    git_host = rel_settings['git_host']
 
     # Any of the following operations may require a restart.
     restart_req = []
 
     restart_req.append(update_projects(admin_username, admin_email,
-                                       admin_privkey_path, public_url))
+                                       admin_privkey_path, git_host))
 
     restart_req.append(update_permissions(admin_username, admin_email,
                                           admin_privkey_path))
