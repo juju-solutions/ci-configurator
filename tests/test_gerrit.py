@@ -3,8 +3,7 @@ import mock
 import testtools
 import tempfile
 import shutil
-
-gerrit = None  # stub to stop flake8 errors
+import gerrit
 
 LS_REMOTE_OUTPUT = """
 3bd6f626873b11b27624769554ec5fbebe48a056    HEAD
@@ -16,12 +15,9 @@ LS_REMOTE_OUTPUT = """
 def common_mocks(f):
     def common_test_mocks_inner(inst, *args, **kwargs):
 
-        @mock.patch('charmhelpers.fetch.apt_install')
-        @mock.patch('charmhelpers.core.hookenv.log')
+        @mock.patch('gerrit.apt_install')
+        @mock.patch('gerrit.log')
         def common_test_mocks_inner2(*inner_args):
-            # Need to import gerrit after we have mocked apt_install
-            import gerrit
-            global gerrit
             for arg in inner_args:
                 inst.__dict__[arg] = arg
             return f(inst, *args, **kwargs)

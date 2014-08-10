@@ -30,10 +30,6 @@ from charmhelpers.canonical_ci.gerrit import (
 )
 from charmhelpers.canonical_ci import cron
 
-# Need to ensure this is installed otherwise anyone importing gerrit will break
-apt_install(filter_installed_packages(['python-jinja2']), fatal=True)
-from jinja2 import Template
-
 GERRIT_INIT_SCRIPT = '/etc/init.d/gerrit'
 GERRIT_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'gerrit')
 THEME_DIR = os.path.join(GERRIT_CONFIG_DIR, 'theme')
@@ -235,6 +231,15 @@ def setup_gitreview(path, repo, host):
     if not os.path.exists(target):
         log("%s not found in %s repo" % (target, repo), level=INFO)
         cmds.append(['git', 'add', git_review_cfg])
+
+    # See https://bugs.launchpad.net/canonical-ci/+bug/1354923 for explanation
+    # of why we are doing this here.
+    try:
+        import jinja2  # NOQA
+    except ImportError:
+        apt_install(filter_installed_packages(['python-jinja2']), fatal=True)
+    finally:
+        from jinja2 import Template
 
     templates_dir = os.path.join(charm_dir(), TEMPLATES)
     with open(os.path.join(templates_dir, git_review_cfg), 'r') as fd:
