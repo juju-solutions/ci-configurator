@@ -8,6 +8,10 @@ import tempfile
 import urlparse
 import yaml
 
+from charmhelpers.fetch import (
+    apt_install,
+    filter_installed_packages
+)
 from charmhelpers.core.hookenv import (
     charm_dir,
     config,
@@ -25,6 +29,9 @@ from charmhelpers.canonical_ci.gerrit import (
     stop_gerrit
 )
 from charmhelpers.canonical_ci import cron
+
+# Need to ensure this is installed otherwise anyone importing gerrit will break
+apt_install(filter_installed_packages(['python-jinja2']), fatal=True)
 from jinja2 import Template
 
 GERRIT_INIT_SCRIPT = '/etc/init.d/gerrit'
@@ -32,8 +39,9 @@ GERRIT_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'gerrit')
 THEME_DIR = os.path.join(GERRIT_CONFIG_DIR, 'theme')
 HOOKS_DIR = os.path.join(GERRIT_CONFIG_DIR, 'hooks')
 PERMISSIONS_DIR = os.path.join(GERRIT_CONFIG_DIR, 'permissions')
-PROJECTS_CONFIG_FILE = os.path.join(GERRIT_CONFIG_DIR, 'projects/projects.yml')
-GROUPS_CONFIG_FILE = os.path.join(GERRIT_CONFIG_DIR, 'permissions/groups.yml')
+GROUPS_CONFIG_FILE = os.path.join(PERMISSIONS_DIR, 'groups.yml')
+PROJECTS_CONFIG_FILE = os.path.join(GERRIT_CONFIG_DIR, 'projects',
+                                    'projects.yml')
 GIT_PATH = os.path.join('/srv', 'git')
 SSH_PORT = 29418
 GERRIT_USER = 'gerrit2'

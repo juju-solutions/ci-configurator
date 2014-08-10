@@ -80,7 +80,6 @@ def config_changed():
 
 @hooks.hook()
 def upgrade_charm():
-    apt_install(filter_installed_packages(common.PACKAGES), fatal=True)
     config_changed()
 
 
