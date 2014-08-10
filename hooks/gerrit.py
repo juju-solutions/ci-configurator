@@ -128,8 +128,9 @@ def setup_gerrit_groups(gerritperms_path, admin_username, admin_email):
             msg = 'Failed to query gerrit db for groups'
             raise GerritConfigurationException(msg)
     except GerritConfigurationException as exc:
-        os.chdir(cwd)
         raise exc
+    finally:
+        os.chdir(cwd)
 
 
 def update_permissions(admin_username, admin_email, admin_privkey):
