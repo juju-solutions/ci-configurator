@@ -9,6 +9,7 @@ import urlparse
 import yaml
 
 from charmhelpers.core.hookenv import (
+    charm_dir,
     config,
     log,
     relation_ids,
@@ -94,6 +95,43 @@ def update_hooks(hooks_dest, settings):
     return True
 
 
+def setup_gerrit_groups(gerritperms_path, admin_username, admin_email):
+    """Generate groups file"""
+    cwd = os.getcwd()
+    os.chdir(gerritperms_path)
+    try:
+        query = 'SELECT name, group_uuid FROM account_groups'
+        cmd = ['java', '-jar', WAR_PATH, 'gsql', '-d', SITE_PATH, '-c', query]
+        result = subprocess.check_output(cmd)
+        if result:
+            # parse file and generate groups
+            output = result.splitlines()
+            with open('groups', 'w') as f:
+                for item in output[2:]:
+                    # split between name and id
+                    data = item.split('|')
+                    if len(data) == 2:
+                        group_cfg = ('%s\t%s\n' %
+                                     (data[1].strip(), data[0].strip()))
+                        f.write(group_cfg)
+
+            cmds = [['git', 'config', '--global', 'user.name',
+                     admin_username],
+                    ['git', 'config', '--global', 'user.email',
+                     admin_email],
+                    ['git', 'commit', '-a', '-m', '"Initial permissions"'],
+                    ['git', 'push', 'repo', 'meta/config:meta/config']]
+            for cmd in cmds:
+                common.run_as_user(user=GERRIT_USER, cmd=cmd,
+                                   cwd=gerritperms_path)
+        else:
+            msg = 'Failed to query gerrit db for groups'
+            raise GerritConfigurationException(msg)
+    except GerritConfigurationException as exc:
+        os.chdir(cwd)
+        raise exc
+
+
 def update_permissions(admin_username, admin_email, admin_privkey):
     if not os.path.isdir(PERMISSIONS_DIR):
         log('Gerrit permissions directory not found @ %s, skipping '
@@ -154,35 +192,11 @@ def update_permissions(admin_username, admin_email, admin_privkey):
 
             common.sync_dir(os.path.join(PERMISSIONS_DIR, 'All-Projects'),
                             tmppath)
-            os.chdir(tmppath)
 
-            # generate groups file
-            query = 'SELECT name, group_uuid FROM account_groups'
-            cmd = ['java', '-jar', WAR_PATH, 'gsql', '-d', SITE_PATH, '-c',
-                   query]
-            result = subprocess.check_output(cmd)
-            if result:
-                # parse file and generate groups
-                output = result.splitlines()
-                with open('groups', 'w') as f:
-                    for item in output[2:]:
-                        # split between name and id
-                        data = item.split('|')
-                        if len(data) == 2:
-                            group_cfg = ('%s\t%s\n' %
-                                         (data[1].strip(), data[0].strip()))
-                            f.write(group_cfg)
-
-                cmds = [['git', 'config', '--global', 'user.name',
-                         admin_username],
-                        ['git', 'config', '--global', 'user.email',
-                         admin_email],
-                        ['git', 'commit', '-a', '-m', '"Initial permissions"'],
-                        ['git', 'push', 'repo', 'meta/config:meta/config']]
-                for cmd in cmds:
-                    common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=tmppath)
-            else:
-                log('Failed to query gerrit db for groups', level=ERROR)
+            try:
+                setup_gerrit_groups(tmppath, admin_username, admin_email)
+            except GerritConfigurationException as exc:
+                log(str(exc), level=ERROR)
                 return False
         else:
             log('Failed to create permissions temporary directory',
@@ -215,7 +229,8 @@ def setup_gitreview(path, repo, host):
         log("%s not found in %s repo" % (target, repo), level=INFO)
         cmds.append(['git', 'add', git_review_cfg])
 
-    with open(os.path.join(TEMPLATES, git_review_cfg), 'r') as fd:
+    templates_dir = os.path.join(charm_dir(), TEMPLATES)
+    with open(os.path.join(templates_dir, git_review_cfg), 'r') as fd:
         t = Template(fd.read())
         rendered = t.render(repo=repo, host=host, port=SSH_PORT)
 

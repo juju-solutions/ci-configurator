@@ -23,9 +23,11 @@ class GerritTestCase(testtools.TestCase):
         super(GerritTestCase, self).tearDown()
         shutil.rmtree(self.tmpdir)
 
+    @mock.patch('gerrit.charm_dir')
     @mock.patch('tempfile.mkdtemp')
     @mock.patch('gerrit.log')
-    def test_setup_gitreview(self, mock_log, mock_mkdtemp):
+    def test_setup_gitreview(self, mock_log, mock_mkdtemp, mock_charm_dir):
+        mock_charm_dir.return_value = '.'
         mock_mkdtemp.return_value = self.tmpdir
         project = 'openstack/neutron.git'
         host = 'http://foo.bar'
@@ -41,9 +43,12 @@ class GerritTestCase(testtools.TestCase):
                               'port=29418\n', 'project=%s\n' % (project)],
                              fd.readlines())
 
+    @mock.patch('gerrit.charm_dir')
     @mock.patch('tempfile.mkdtemp')
     @mock.patch('gerrit.log')
-    def test_setup_gitreview_already_exists(self, mock_log, mock_mkdtemp):
+    def test_setup_gitreview_already_exists(self, mock_log, mock_mkdtemp,
+                                            mock_charm_dir):
+        mock_charm_dir.return_value = '.'
         mock_mkdtemp.return_value = self.tmpdir
         shutil.copy(os.path.join(gerrit.TEMPLATES, '.gitreview'), self.tmpdir)
         project = 'openstack/neutron.git'
