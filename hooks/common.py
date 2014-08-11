@@ -8,7 +8,7 @@ from charmhelpers.core.host import adduser, add_user_to_group
 from charmhelpers.core.hookenv import charm_dir, config, log, ERROR
 
 PACKAGES = [
-    'bzr',
+    'bzr'
 ]
 
 CI_USER = 'ci'
