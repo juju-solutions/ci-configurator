@@ -269,6 +269,8 @@ def repo_is_initialised(url, branches=None):
     branches is provided, they are checked as well.
 
     Returns True if all exist, otherwise returns False.
+
+    :param branches: (optional) branches to check
     """
     # Get list of refs extant in the repo
     cmd = ['git', 'ls-remote', url]
