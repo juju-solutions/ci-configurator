@@ -144,6 +144,8 @@ def update_permissions(admin_username, admin_email, admin_privkey):
     repo_name = 'All-Projects.git'
     # Only proceed if the repo has NOT been successfully initialised.
     if repo_is_initialised("%s/%s" % (GIT_PATH, repo_name)):
+        log("%s is already initialised - skipping update permissions" %
+            (repo_name), level=INFO)
         return True
 
     # create launchpad directory and setup permissions
