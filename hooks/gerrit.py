@@ -315,11 +315,10 @@ def create_projects(admin_username, admin_email, admin_privkey, base_url,
         for project in projects:
             name, repo = project.itervalues()
 
-            # TODO: currently if False is returned this can indicate either
-            # error or already exists. Needs fixing in charm-helpers and
-            # syncing in.
             if not gerrit_client.create_project(name):
-                pass
+                log("failed to create project in gerrit - skipping setup "
+                    "for '%s'" % (name))
+                continue
 
             git_srv_path = os.path.join(GIT_PATH, name)
             repo_path = os.path.join(tmpdir, name.replace('/', ''))
