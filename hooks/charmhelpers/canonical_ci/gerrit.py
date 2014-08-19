@@ -7,7 +7,9 @@ import json
 
 from charmhelpers.core.hookenv import (
     log as _log,
-    ERROR,
+    INFO,
+    WARNING,
+    ERROR
 )
 
 _connection = None
@@ -209,23 +211,58 @@ class GerritClient(object):
                     stdout, stderr = self._run_cmd(cmd)
 
     def create_project(self, project):
+        """Create project in gerrit.
+
+        This will create create an empty git repository at gerrit.basePath and
+        will also update the gerrit db with an entry for this repo.
+
+        If the command fails because the repository already exists, we allow
+        the operation to succeed but we log a WARNING.
+
+        Returns True if the operation succeeded, otherwise False.
+        """
         log('Creating gerrit project %s' % project)
+
         cmd = ('gerrit create-project %s' % project)
         stdout, stderr = self._run_cmd(cmd)
-        if not stdout and not stderr:
-            log('Created new project %s.' % project)
-            return True
-        else:
-            log('Error creating project %s, skipping project creation' %
-                project)
-            return False
+        if stderr:
+            if stderr != 'fatal: project "%s" exists' % (project):
+                msg = ("Failed to create project '%s' (stderr='%s')." %
+                       (project, stderr))
+                log(msg, level=ERROR)
+                return False
+            else:
+                msg = ("Project '%s' already exists." % project)
+                log(msg, level=WARNING)
+                return True
+
+        log("Successfully created new project '%s'." % project, level=INFO)
+        return True
 
     def create_group(self, group):
+        """Create group in gerrit.
+
+        If the command fails because the group already exists, we allow the
+        operation to succeed but we log a WARNING.
+
+        Returns True if the operation succeeded, otherwise False.
+        """
+
         log('Creating gerrit group %s' % group)
         cmd = ('gerrit create-group %s' % group)
         stdout, stderr = self._run_cmd(cmd)
-        if not stdout and not stderr:
-            log('Created new group %s.' % group)
+        if stderr:
+            if stderr != 'fatal: Name Already Used':
+                msg = ("Failed to create group '%s' (stderr='%s')." %
+                       (group, stderr))
+                log(msg, level=ERROR)
+                return
+            else:
+                msg = ("Group '%s' already exists." % group)
+                log(msg, level=WARNING)
+                return
+
+        log("Successfully created new group '%s'." % group, level=INFO)
 
     def flush_cache(self):
         cmd = ('gerrit flush-caches')
