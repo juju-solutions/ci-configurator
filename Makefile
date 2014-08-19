@@ -74,6 +74,6 @@ sync:
 	@charm-helper-sync -c charm-helpers.yaml
 
 test:
-	@(export PYTHONPATH=hooks; nosetests tests)
+	@(export PYTHONPATH=hooks; nosetests -v tests)
 
 .PHONY: revision proof installdeps
