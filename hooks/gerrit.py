@@ -141,6 +141,13 @@ def update_permissions(admin_username, admin_email, admin_privkey):
             'permissions refresh.' % PERMISSIONS_DIR, level=WARNING)
         return False
 
+    repo_name = 'All-Projects.git'
+    # Only proceed if the repo has NOT been successfully initialised.
+    if repo_is_initialised("%s/%s" % (GIT_PATH, repo_name)):
+        log("%s is already initialised - skipping update permissions" %
+            (repo_name), level=INFO)
+        return True
+
     # create launchpad directory and setup permissions
     if not os.path.isdir(LAUNCHPAD_DIR):
         os.mkdir(LAUNCHPAD_DIR)
@@ -183,8 +190,8 @@ def update_permissions(admin_username, admin_email, admin_privkey):
             subprocess.check_call(cmd)
             os.chmod(tmppath, 0774)
 
-            repo_url = ('ssh://%s@localhost:%s/All-Projects.git' %
-                        (admin_username, SSH_PORT))
+            repo_url = ('ssh://%s@localhost:%s/%s' %
+                        (admin_username, SSH_PORT, repo_name))
             config_ref = 'refs/meta/config:refs/remotes/origin/meta/config'
 
             for cmd in [['git', 'init'],
@@ -255,9 +262,15 @@ def setup_gitreview(path, repo, host):
     return cmds
 
 
-def repo_is_initialised(url, branches):
-    """Query git repository to get configuration and check that all branches
-    exist (both config and default). If they do, return True otherwise False.
+def repo_is_initialised(url, branches=None):
+    """Query git repository to determine if initialised.
+
+    Check id the common refs i.e. HEAD and refs/meta/config exist. If a list of
+    branches is provided, they are checked as well.
+
+    Returns True if all exist, otherwise returns False.
+
+    :param branches: (optional) branches to check
     """
     # Get list of refs extant in the repo
     cmd = ['git', 'ls-remote', url]
@@ -265,11 +278,15 @@ def repo_is_initialised(url, branches):
 
     # Match branches
     key = r"^[\S]+\s+?%s"
-    keys = [re.compile(key % ("refs/heads/%s" % b)) for b in branches]
 
     # These two refs should always exist
-    keys.append(re.compile(key % "HEAD"))
+    expected_refcount = 2
+    keys = [re.compile(key % "HEAD")]
     keys.append(re.compile(key % "refs/meta/config"))
+
+    if branches:
+        expected_refcount += len(branches)
+        keys += [re.compile(key % ("refs/heads/%s" % b)) for b in branches]
 
     found = 0
     for line in stdout.split('\n'):
@@ -280,7 +297,7 @@ def repo_is_initialised(url, branches):
                 keys.pop(i)
                 break
 
-    if found == len(branches) + 2:
+    if found == expected_refcount:
         return True
 
     return False

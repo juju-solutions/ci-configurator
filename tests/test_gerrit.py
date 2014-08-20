@@ -5,10 +5,15 @@ import tempfile
 import shutil
 import gerrit
 
-LS_REMOTE_OUTPUT = """
+LS_REMOTE_OUTPUT_NO_BRANCHES = """
 3bd6f626873b11b27624769554ec5fbebe48a056    HEAD
-3bd6f626873b11b27624769554ec5fbebe48a056    refs/heads/master
 15ac7baff8d1251547a51dd3b1d51c52e0932d0d    refs/meta/config
+"""
+
+LS_REMOTE_OUTPUT_W_BRANCHES = """
+3bd6f626873b11b27624769554ec5fbebe48a056    HEAD
+15ac7baff8d1251547a51dd3b1d51c52e0932d0d    refs/meta/config
+9e536656202181d9c2684a66eaf38886555cf740    refs/heads/master
 """
 
 
@@ -100,7 +105,19 @@ class GerritTestCase(testtools.TestCase):
     @mock.patch('subprocess.check_output')
     @common_mocks
     def test_repo_is_initialised(self, mock_check_output):
+        mock_check_output.return_value = LS_REMOTE_OUTPUT_NO_BRANCHES
+        result = gerrit.repo_is_initialised('/foo/bar')
+        self.assertTrue(result)
+
+        mock_check_output.return_value = LS_REMOTE_OUTPUT_W_BRANCHES
+        result = gerrit.repo_is_initialised('/foo/bar')
+        self.assertTrue(result)
+
         branches = ['master']
-        mock_check_output.return_value = LS_REMOTE_OUTPUT
+        mock_check_output.return_value = LS_REMOTE_OUTPUT_NO_BRANCHES
+        result = gerrit.repo_is_initialised('/foo/bar', branches)
+        self.assertFalse(result)
+
+        mock_check_output.return_value = LS_REMOTE_OUTPUT_W_BRANCHES
         result = gerrit.repo_is_initialised('/foo/bar', branches)
         self.assertTrue(result)
