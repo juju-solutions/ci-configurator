@@ -226,6 +226,7 @@ class GerritClient(object):
         cmd = ('gerrit create-project %s' % project)
         stdout, stderr = self._run_cmd(cmd)
         if stderr:
+            stderr = stderr.strip()
             if stderr != 'fatal: project "%s" exists' % (project):
                 msg = ("Failed to create project '%s' (stderr='%s')." %
                        (project, stderr))
@@ -252,6 +253,7 @@ class GerritClient(object):
         cmd = ('gerrit create-group %s' % group)
         stdout, stderr = self._run_cmd(cmd)
         if stderr:
+            stderr = stderr.strip()
             if stderr != 'fatal: Name Already Used':
                 msg = ("Failed to create group '%s' (stderr='%s')." %
                        (group, stderr))
