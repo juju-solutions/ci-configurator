@@ -1,9 +1,10 @@
+import json
 import logging
 import os
 import paramiko
+import re
 import sys
 import subprocess
-import json
 
 from charmhelpers.core.hookenv import (
     log as _log,
@@ -227,7 +228,8 @@ class GerritClient(object):
         stdout, stderr = self._run_cmd(cmd)
         if stderr:
             stderr = stderr.strip()
-            if stderr != 'fatal: project "%s" exists' % (project):
+            key = re.compile("fatal: project .+? exists")
+            if not key.match(stderr):
                 msg = ("Failed to create project '%s' (stderr='%s')." %
                        (project, stderr))
                 log(msg, level=ERROR)
@@ -254,7 +256,8 @@ class GerritClient(object):
         stdout, stderr = self._run_cmd(cmd)
         if stderr:
             stderr = stderr.strip()
-            if stderr != 'fatal: Name Already Used':
+            key = re.compile("fatal: Name Already Used")
+            if not key.match(stderr):
                 msg = ("Failed to create group '%s' (stderr='%s')." %
                        (group, stderr))
                 log(msg, level=ERROR)
