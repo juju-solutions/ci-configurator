@@ -47,6 +47,7 @@ SITE_PATH = os.path.join(GERRIT_HOME, 'review_site')
 LOGS_PATH = os.path.join(SITE_PATH, 'logs')
 LAUNCHPAD_DIR = os.path.join(GERRIT_HOME, '.launchpadlib')
 TEMPLATES = 'templates'
+INITIAL_PERMISSIONS_COMMIT_MSG = "Initial permissions"
 
 
 class GerritConfigurationException(Exception):
@@ -123,7 +124,8 @@ def setup_gerrit_groups(gerritperms_path, admin_username, admin_email):
                      admin_username],
                     ['git', 'config', '--global', 'user.email',
                      admin_email],
-                    ['git', 'commit', '-a', '-m', '"Initial permissions"'],
+                    ['git', 'commit', '-a', '-m', '"%s"' %
+                     (INITIAL_PERMISSIONS_COMMIT_MSG)]
                     ['git', 'push', 'repo', 'meta/config:meta/config']]
             for cmd in cmds:
                 common.run_as_user(user=GERRIT_USER, cmd=cmd,
@@ -135,18 +137,27 @@ def setup_gerrit_groups(gerritperms_path, admin_username, admin_email):
         os.chdir(cwd)
 
 
+def is_permissions_initialised(repo_name, repo_path):
+    """ The All-Projects.git repository is created by the Gerrit charm and
+    configured by this charm. In order for it to be deemed initialised we need:
+
+    1. expected branches
+    2. initial permissions commit message
+    """
+    if repo_is_initialised("%s/%s" % (GIT_PATH, repo_name)):
+        cmd = ['git', 'log', '--grep', INITIAL_PERMISSIONS_COMMIT_MSG]
+        stdout = common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=repo_path)
+        if stdout and INITIAL_PERMISSIONS_COMMIT_MSG in stdout:
+            return True
+
+    return False
+
+
 def update_permissions(admin_username, admin_email, admin_privkey):
     if not os.path.isdir(PERMISSIONS_DIR):
         log('Gerrit permissions directory not found @ %s, skipping '
             'permissions refresh.' % PERMISSIONS_DIR, level=WARNING)
         return False
-
-    repo_name = 'All-Projects.git'
-    # Only proceed if the repo has NOT been successfully initialised.
-    if repo_is_initialised("%s/%s" % (GIT_PATH, repo_name)):
-        log("%s is already initialised - skipping update permissions" %
-            (repo_name), level=INFO)
-        return True
 
     # create launchpad directory and setup permissions
     if not os.path.isdir(LAUNCHPAD_DIR):
@@ -170,6 +181,10 @@ def update_permissions(admin_username, admin_email, admin_privkey):
         cron.schedule_generic_job(
             config('lp-schedule'), 'root', 'launchpad_sync', command)
 
+    repo_name = 'All-Projects.git'
+    repo_url = ('ssh://%s@localhost:%s/%s' % (admin_username, SSH_PORT,
+                                              repo_name))
+
     # parse groups file and create groups
     gerrit_client = GerritClient(host='localhost', user=admin_username,
                                  port=SSH_PORT, key_file=admin_privkey)
@@ -190,8 +205,6 @@ def update_permissions(admin_username, admin_email, admin_privkey):
             subprocess.check_call(cmd)
             os.chmod(tmppath, 0774)
 
-            repo_url = ('ssh://%s@localhost:%s/%s' %
-                        (admin_username, SSH_PORT, repo_name))
             config_ref = 'refs/meta/config:refs/remotes/origin/meta/config'
 
             for cmd in [['git', 'init'],
@@ -202,6 +215,12 @@ def update_permissions(admin_username, admin_email, admin_privkey):
 
             common.sync_dir(os.path.join(PERMISSIONS_DIR, 'All-Projects'),
                             tmppath)
+
+            # Only proceed if the repo has NOT been successfully initialised.
+            if is_permissions_initialised(repo_name, tmppath):
+                log("%s is already initialised - skipping update permissions" %
+                    (repo_name), level=INFO)
+                return False
 
             try:
                 setup_gerrit_groups(tmppath, admin_username, admin_email)
