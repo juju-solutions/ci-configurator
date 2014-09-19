@@ -47,7 +47,7 @@ SITE_PATH = os.path.join(GERRIT_HOME, 'review_site')
 LOGS_PATH = os.path.join(SITE_PATH, 'logs')
 LAUNCHPAD_DIR = os.path.join(GERRIT_HOME, '.launchpadlib')
 TEMPLATES = 'templates'
-INITIAL_PERMISSIONS_COMMIT_MSG = "Initial permissions"
+INITIAL_PERMISSIONS_COMMIT_MSG = "@ CI-CONFIGURATOR INITIAL PERMISSIONS SET @"
 
 
 class GerritConfigurationException(Exception):
@@ -149,6 +149,21 @@ def is_permissions_initialised(repo_name, repo_path):
         stdout = common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=repo_path)
         if stdout and INITIAL_PERMISSIONS_COMMIT_MSG in stdout:
             return True
+
+        # NOTE(dosaboy): the ci-configurator used to set the same commit
+        # message as the gerrit charm i.e. "Initial permissions" so if we don't
+        # find the new-style message we then check for > 1 of the old-style
+        # message.
+        old_style_msg = "Initial permissions"
+        cmd = ['git', 'log', '--grep', old_style_msg]
+        stdout = common.run_as_user(user=GERRIT_USER, cmd=cmd, cwd=repo_path)
+        if stdout:
+            count = 0
+            for line in stdout.split('\n'):
+                if old_style_msg in line:
+                    count += 1
+                if count > 1:
+                    return True
 
     return False
 
