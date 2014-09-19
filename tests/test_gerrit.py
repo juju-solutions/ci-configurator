@@ -121,3 +121,24 @@ class GerritTestCase(testtools.TestCase):
         mock_check_output.return_value = LS_REMOTE_OUTPUT_W_BRANCHES
         result = gerrit.repo_is_initialised('/foo/bar', branches)
         self.assertTrue(result)
+
+    @mock.patch('gerrit.repo_is_initialised')
+    @mock.patch('common.run_as_user')
+    @common_mocks
+    def test_is_permissions_initialised(self, mock_run_as_user,
+                                        mock_repo_initialised):
+        mock_repo_initialised.return_value = True
+        mock_run_as_user.return_value = "foo"
+        self.assertFalse(gerrit.is_permissions_initialised('foo', 'bar'))
+
+        mock_run_as_user.return_value = \
+            gerrit.INITIAL_PERMISSIONS_COMMIT_MSG
+        self.assertTrue(gerrit.is_permissions_initialised('foo', 'bar'))
+
+        mock_run_as_user.return_value = \
+            "Initial permissions\n"
+        self.assertFalse(gerrit.is_permissions_initialised('foo', 'bar'))
+
+        mock_run_as_user.return_value = \
+            "Initial permissions\nInitial permissions\n"
+        self.assertTrue(gerrit.is_permissions_initialised('foo', 'bar'))
