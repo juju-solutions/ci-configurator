@@ -125,7 +125,7 @@ def setup_gerrit_groups(gerritperms_path, admin_username, admin_email):
                     ['git', 'config', '--global', 'user.email',
                      admin_email],
                     ['git', 'commit', '-a', '-m', '"%s"' %
-                     (INITIAL_PERMISSIONS_COMMIT_MSG)]
+                     (INITIAL_PERMISSIONS_COMMIT_MSG)],
                     ['git', 'push', 'repo', 'meta/config:meta/config']]
             for cmd in cmds:
                 common.run_as_user(user=GERRIT_USER, cmd=cmd,
