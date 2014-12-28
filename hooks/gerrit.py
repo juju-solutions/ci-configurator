@@ -190,9 +190,9 @@ def update_permissions(admin_username, admin_email, admin_privkey):
     # if we have teams and schedule, update cronjob
     if config('lp-schedule'):
         command = ('%s %s %s > %s 2>&1' %
-                  (os.path.join(os.environ['CHARM_DIR'], 'scripts',
-                   'query_lp_members.py'), admin_username, admin_privkey,
-                   LOGS_PATH+'/launchpad_sync.log'))
+                   (os.path.join(os.environ['CHARM_DIR'], 'scripts',
+                    'query_lp_members.py'), admin_username, admin_privkey,
+                    LOGS_PATH+'/launchpad_sync.log'))
         cron.schedule_generic_job(
             config('lp-schedule'), 'root', 'launchpad_sync', command)
 
@@ -455,38 +455,35 @@ def update_projects(admin_username, admin_email, privkey_path, git_host):
     return True
 
 
-def get_relation_settings(name, keys):
+def get_relation_settings(keys):
     """Fetch required relation settings.
 
     If any setting is unset ('' or None) we return None.
 
-    :param name: Relation name.
     :param keys: Setting keys to look for.
     """
     settings = {}
-    null_values = []
     try:
-        for rid in relation_ids(name):
+        for rid in relation_ids('gerrit-configurator'):
             for unit in related_units(rid):
                 for key in keys:
                     settings[key] = relation_get(key, rid=rid, unit=unit)
-                    if not settings[key]:
-                        null_values.append(key)
+
     except Exception as exc:
         log('Failed to get gerrit relation data (%s).' % (exc), level=WARNING)
         return
 
-    if null_values:
-        log("Missing values '%s' in gerrit relation - skipping permissions "
-            "refresh." % (','.join(null_values)), level=WARNING)
+    missing = [k for k, v in settings.iteritems() if not v]
+    if missing:
+        log("Missing value for '%s' in gerrit relation." %
+            (','.join(missing)), level=WARNING)
         return
 
     return settings
 
 
 def update_gerrit():
-    rel_name = 'gerrit-configurator'
-    if not relation_ids(rel_name):
+    if not relation_ids('gerrit-configurator'):
         log('*** No relation to gerrit, skipping update.')
         return
 
@@ -498,9 +495,10 @@ def update_gerrit():
 
     required_keys = ['admin_username', 'admin_email', 'admin_privkey_path',
                      'review_site_dir', 'git_host']
-    rel_settings = get_relation_settings(rel_name, required_keys)
+    rel_settings = get_relation_settings(required_keys)
     if not rel_settings:
-        log("Unable to get relation settings for %s" % (rel_name))
+        log("Missing or invalid relation settings - skipping update",
+            level=INFO)
         return
 
     review_site_dir = rel_settings['review_site_dir']
