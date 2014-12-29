@@ -19,10 +19,13 @@ from charmhelpers.core.hookenv import (
     charm_dir,
     config,
     log,
+    DEBUG,
+    INFO,
+    relation_ids,
+    related_units,
     relation_set,
     Hooks,
     UnregisteredHookError,
-    INFO
 )
 
 hooks = Hooks()
@@ -36,6 +39,26 @@ def install():
     apt_install(filter_installed_packages(common.PACKAGES), fatal=True)
 
 
+def run_relation_hooks():
+    """Run relation hooks (if relations exist) to ensure that configs are
+    updated/accurate.
+    """
+    for rid in relation_ids('jenkins-configurator'):
+        if related_units(relid=rid):
+            log("Running jenkins-configurator-changed hook", level=DEBUG)
+            jenkins_configurator_relation_changed(rid=rid)
+
+    for rid in relation_ids('gerrit-configurator'):
+        if related_units(relid=rid):
+            log("Running gerrit-configurator-changed hook", level=DEBUG)
+            gerrit_configurator_relation_changed(rid=rid)
+
+    for rid in relation_ids('zuul-configurator'):
+        if related_units(relid=rid):
+            log("Running zuul-configurator-changed hook", level=DEBUG)
+            zuul_configurator_relation_changed(rid=rid)
+
+
 @hooks.hook()
 def config_changed():
     # setup identity to reach private LP resources
@@ -47,13 +70,17 @@ def config_changed():
         cmd = ['bzr', 'launchpad-login', lp_user]
         common.run_as_user(cmd=cmd, user=common.CI_USER)
 
+    # NOTE: this will overwrite existing configs so relation hooks will have to
+    # re-run in order for settings to be re-applied.
     bundled_repo = os.path.join(charm_dir(), common.LOCAL_CONFIG_REPO)
     conf_repo = config('config-repo')
     if os.path.exists(bundled_repo) and os.path.isdir(bundled_repo):
         common.update_configs_from_charm(bundled_repo)
+        run_relation_hooks()
     elif is_valid_config_repo(conf_repo):
         common.update_configs_from_repo(conf_repo,
                                         config('config-repo-revision'))
+        run_relation_hooks()
 
     if config('schedule-updates'):
         schedule = config('update-frequency')
@@ -68,7 +95,7 @@ def upgrade_charm():
 
 
 @hooks.hook()
-def jenkins_configurator_relation_joined():
+def jenkins_configurator_relation_joined(rid=None):
     """Install jenkins job builder.
 
     Also inform jenkins of any plugins our tests may require, as defined in
@@ -77,21 +104,18 @@ def jenkins_configurator_relation_joined():
     jjb.install()
     plugins = jjb.required_plugins()
     if plugins:
-        relation_set(required_plugins=' '.join(plugins))
+        relation_set(relation_id=rid, required_plugins=' '.join(plugins))
 
 
 @hooks.hook('jenkins-configurator-relation-changed')
-def jenkins_configurator_relation_changed():
+def jenkins_configurator_relation_changed(rid=None):
     """Update/configure Jenkins installation.
 
     Also ensures that JJB and any required plugins are installed.
     """
-    # Ensure we pick up any config repo changes
-    config_changed()
-
     # Ensure jjb and any available plugins are installed before attempting
     # update.
-    jenkins_configurator_relation_joined()
+    jenkins_configurator_relation_joined(rid=rid)
 
     if is_ci_configured():
         if os.path.isdir(jjb.CONFIG_DIR):
@@ -103,11 +127,8 @@ def jenkins_configurator_relation_changed():
 
 
 @hooks.hook('gerrit-configurator-relation-changed')
-def gerrit_configurator_relation_changed():
+def gerrit_configurator_relation_changed(rid=None):
     """Update/configure Gerrit installation."""
-    # Ensure we pick up any config repo changes
-    config_changed()
-
     if is_ci_configured():
         gerrit.update_gerrit()
     else:
@@ -115,11 +136,8 @@ def gerrit_configurator_relation_changed():
 
 
 @hooks.hook('zuul-configurator-relation-changed')
-def zuul_configurator_relation_changed():
+def zuul_configurator_relation_changed(rid=None):
     """Update/configure Zuul installation."""
-    # Ensure we pick up any config repo changes
-    config_changed()
-
     if is_ci_configured():
         zuul.update_zuul()
     else:
