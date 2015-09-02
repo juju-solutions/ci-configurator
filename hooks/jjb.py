@@ -97,7 +97,7 @@ def install_from_file(tarball):
     os.chdir(outdir)
     deps = os.path.join(charm_dir(), 'files', LOCAL_PIP_DEPS)
     cmd = ['pip', 'install', '--no-index',
-           '--find-links=file://%s' % deps, '-r', 'tools/pip-requires']
+           '--find-links=file://%s' % deps, '-r', 'requirements.txt']
     subprocess.check_call(cmd)
     cmd = ['python', './setup.py', 'install']
     subprocess.check_call(cmd)
