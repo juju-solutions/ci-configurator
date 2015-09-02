@@ -34,16 +34,16 @@ define update_with_branch
 
 	@$(CP) -R $(SOURCEDEPS_DIR)/ci-configurator/jenkins-job-builder/jenkins-job-builder_reqs $(FILES_DIR)/jenkins-job-builder_reqs
 	@$(CP) $(SOURCEDEPS_DIR)/ci-configurator/jenkins-job-builder/jenkins-job-builder.tar.gz $(FILES_DIR)/
-	@$(CP) $(SOURCEDEPS_DIR)/ci-configurator/jenkins-job-builder/pip-requires $(FILES_DIR)/pip-requires
+	@$(CP) $(SOURCEDEPS_DIR)/ci-configurator/jenkins-job-builder/requirements.txt $(FILES_DIR)/requirements.txt
 endef
 
 define update_without_branch
 	@mkdir -p $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs
 	@echo Updating source dependencies...
 	@$(GIT) clone $(JBB_GIT) $(SOURCEDEPS_DIR)/jenkins-job-builder
-	@cd $(SOURCEDEPS_DIR) && $(CP) $(SOURCEDEPS_DIR)/jenkins-job-builder/tools/pip-requires $(FILES_DIR)/
+	@cd $(SOURCEDEPS_DIR) && $(CP) $(SOURCEDEPS_DIR)/jenkins-job-builder/requirements.txt $(FILES_DIR)/
 	@cd $(SOURCEDEPS_DIR) && $(TAR) cfz $(FILES_DIR)/jenkins-job-builder.tar.gz jenkins-job-builder/
-	@pip install --download $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs/ -r $(FILES_DIR)/pip-requires && $(CP) -R $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs $(FILES_DIR)/jenkins-job-builder_reqs
+	@pip install --download $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs/ -r $(FILES_DIR)/requirements.txt && $(CP) -R $(SOURCEDEPS_DIR)/jenkins-job-builder_reqs $(FILES_DIR)/jenkins-job-builder_reqs
 endef
 
 installdeps: clean
