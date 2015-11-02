@@ -32,12 +32,7 @@ def update_configs_from_charm(bundled_configs):
     subprocess.check_call(['chown', '-R', CI_USER, CONFIG_DIR])
 
 
-def update_configs_from_repo(repo, revision=None):
-    log('*** Updating %s from remote repo: %s' %
-        (CI_CONFIG_DIR, repo))
-
-    subprocess.check_call(['chown', '-R', CI_USER, CONFIG_DIR])
-
+def update_configs_from_bzr_repo(repo, revision=None):
     if (os.path.isdir(CI_CONFIG_DIR) and
        not os.path.isdir(os.path.join(CI_CONFIG_DIR, '.bzr'))):
         log('%s exists but appears not to be a bzr repo, removing.' %
@@ -66,6 +61,17 @@ def update_configs_from_repo(repo, revision=None):
         os.chdir(CI_CONFIG_DIR)
         log('Running bzr: %s' % cmds)
         [run_as_user(cmd=c, user=CI_USER, cwd=CI_CONFIG_DIR) for c in cmds]
+
+
+def update_configs_from_repo(repo_rcs, repo, revision=None):
+    log('*** Updating %s from remote repo: %s' %
+        (CI_CONFIG_DIR, repo))
+    subprocess.check_call(['chown', '-R', CI_USER, CONFIG_DIR])
+
+    repo_funcs = {
+        'bzr': update_configs_from_bzr_repo,
+    }
+    return repo_funcs[repo_rcs](repo, revision)
 
 
 def load_control():
