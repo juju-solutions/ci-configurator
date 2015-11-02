@@ -63,6 +63,18 @@ def update_configs_from_bzr_repo(repo, revision=None):
         [run_as_user(cmd=c, user=CI_USER, cwd=CI_CONFIG_DIR) for c in cmds]
 
 
+def _disable_git_host_checking():
+    ssh_dir = os.path.join('/home', CI_USER, '.ssh')
+    config_lines = []
+    for host in config('disable-strict-host-checking-hosts').split(','):
+        config_lines.append('Host {}'.format(host.strip()))
+        config_lines.append('  StrictHostKeyChecking no')
+    config_string = '\n'.join(config_lines + [''])
+
+    with open(os.path.join(ssh_dir, 'config'), 'a') as f:
+        f.write(config_string)
+
+
 def update_configs_from_git_repo(repo, revision=None):
     if (os.path.isdir(CI_CONFIG_DIR) and
             not os.path.isdir(os.path.join(CI_CONFIG_DIR, '.git'))):
@@ -70,6 +82,7 @@ def update_configs_from_git_repo(repo, revision=None):
             CI_CONFIG_DIR)
         shutil.rmtree(CI_CONFIG_DIR)
 
+    _disable_git_host_checking()
     if not os.path.exists(CI_CONFIG_DIR):
         log('Cloning {}.'.format(repo))
         cmd = ['git', 'clone', repo, CI_CONFIG_DIR]

@@ -89,3 +89,11 @@ options:
         description:
             If set to true, packages listed in control.yml will be forced to install
             with the --force-confnew and --force-confdef apt options
+    disable-strict-host-checking-hosts:
+        type: string
+        default: ''
+        description: |
+            Comma-separated list of hosts that should have strict host checking
+            disabled in the user that is configuring the charm; this is to
+            allow git cloning of jenkins-job-builder configuration over SSH
+            without interactivity.
