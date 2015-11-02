@@ -23,12 +23,17 @@ options:
             this repository (or anything packaged with the charm) will end up
             installed in/etc/jenkins-job-builder/job-configs/ on the service
             unit.
+
+            Launchpad git branches should use the full URL; the 'lp:' prefix
+            will not be expanded.
     config-repo-revision:
         type: string
         default: "trunk"
         description: |
             If config-repo specified, which revision to use.  Defaults to
-            trunk, and is updated on during every config-changed hook.
+            "trunk", and is updated on during every config-changed hook.
+
+            ("trunk" will be interpreted as "master" if config-repo-rcs is git)
     config-repo-rcs:
         type: string
         default: "bzr"
@@ -36,6 +41,7 @@ options:
             The RCS system to use to fetch the config-repo.  Supported options:
 
             bzr
+            git
     lp-login:
         type: string
         default: ''
