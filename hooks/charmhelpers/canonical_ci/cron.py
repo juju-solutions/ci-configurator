@@ -35,14 +35,22 @@ def schedule_backup(sources, ci_user, target, schedule, retention_count):
     write_cronjob(content)
 
 
-def schedule_repo_updates(schedule, ci_user, ci_config_dir, jobs_config_dir):
+def schedule_repo_updates(schedule, ci_user, ci_config_dir, ci_repo_rcs,
+                          jobs_config_dir):
     log("Creating cronjob to update CI repo config.", INFO)
 
     #XXX: matsubara perhaps would be better to bzr pull and then
     # trigger jjb.update_jenkins()
-    update_command = ("/usr/bin/bzr update %s && "
+    if ci_repo_rcs == 'bzr':
+        ci_update_command = '/usr/bin/bzr update {}'.format(ci_config_dir)
+    elif ci_repo_rcs == 'git':
+        ci_update_command = 'cd {} && /usr/bin/git pull'.format(ci_config_dir)
+    else:
+        log('Unknown RCS: {}'.format(ci_repo_rcs))
+        return False
+    update_command = ("%s && "
                       "/usr/local/bin/jenkins-jobs --flush-cache update %s" %
-                      (ci_config_dir, jobs_config_dir))
+                      (ci_update_command, jobs_config_dir))
 
     content = "%s %s %s\n" % (schedule, ci_user, update_command)
     write_cronjob(content)

@@ -87,7 +87,7 @@ def config_changed():
     if config('schedule-updates'):
         schedule = config('update-frequency')
         cron.schedule_repo_updates(
-            schedule, common.CI_USER, common.CI_CONFIG_DIR,
+            schedule, common.CI_USER, common.CI_CONFIG_DIR, conf_repo_rcs,
             jjb.JOBS_CONFIG_DIR)
 
 
