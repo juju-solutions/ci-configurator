@@ -278,7 +278,7 @@ def _update_jenkins_jobs():
     # because it comes after a restart, so needs time
     for attempt in range(MAX_RETRIES):
         try:
-            cmd = ['jenkins-jobs', '--flush-cache', 'update', JOBS_CONFIG_DIR]
+            cmd = ['jenkins-jobs', 'update', JOBS_CONFIG_DIR]
             # Run as the CI_USER so the cache will be primed with the correct
             # permissions (rather than root:root).
             common.run_as_user(cmd=cmd, user=common.CI_USER)
@@ -315,7 +315,7 @@ def update_jenkins():
     # run repo setup scripts.
     setupd = os.path.join(common.CI_CONFIG_DIR, 'setup.d')
     if os.path.isdir(setupd):
-        cmd = ["run-parts", setupd]
+        cmd = ["run-parts", "--exit-on-error", setupd]
         log('Running repo setup.')
         subprocess.check_call(cmd)
 
