@@ -74,18 +74,20 @@ def config_changed():
     # re-run in order for settings to be re-applied.
     bundled_repo = os.path.join(charm_dir(), common.LOCAL_CONFIG_REPO)
     conf_repo = config('config-repo')
+    conf_repo_rcs = config('config-repo-rcs')
     if os.path.exists(bundled_repo) and os.path.isdir(bundled_repo):
         common.update_configs_from_charm(bundled_repo)
         run_relation_hooks()
-    elif is_valid_config_repo(conf_repo):
-        common.update_configs_from_repo(conf_repo,
+    elif is_valid_config_repo(conf_repo_rcs, conf_repo):
+        common.update_configs_from_repo(conf_repo_rcs,
+                                        conf_repo,
                                         config('config-repo-revision'))
         run_relation_hooks()
 
     if config('schedule-updates'):
         schedule = config('update-frequency')
         cron.schedule_repo_updates(
-            schedule, common.CI_USER, common.CI_CONFIG_DIR,
+            schedule, common.CI_USER, common.CI_CONFIG_DIR, conf_repo_rcs,
             jjb.JOBS_CONFIG_DIR)
 
 

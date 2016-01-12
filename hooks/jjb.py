@@ -107,13 +107,8 @@ def install_from_file(tarball):
 def install_from_git(repo):
     # assumes internet access
     log('*** Installing from remote git repository: %s' % repo)
-    outdir = os.path.join('/tmp', 'jenkins-job-builder')
-    _clean_tmp_dir(outdir)
-    apt_install(filter_installed_packages(['git']), fatal=True)
-    cmd = ['git', 'clone', repo, outdir]
-    subprocess.check_call(cmd)
-    os.chdir(outdir)
-    cmd = ['python', 'setup.py', 'install']
+    apt_install(filter_installed_packages(['git', 'python-pip']), fatal=True)
+    cmd = ['pip', 'install', 'git+{}'.format(repo)]
     subprocess.check_call(cmd)
 
 

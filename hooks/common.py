@@ -32,12 +32,7 @@ def update_configs_from_charm(bundled_configs):
     subprocess.check_call(['chown', '-R', CI_USER, CONFIG_DIR])
 
 
-def update_configs_from_repo(repo, revision=None):
-    log('*** Updating %s from remote repo: %s' %
-        (CI_CONFIG_DIR, repo))
-
-    subprocess.check_call(['chown', '-R', CI_USER, CONFIG_DIR])
-
+def update_configs_from_bzr_repo(repo, revision=None):
     if (os.path.isdir(CI_CONFIG_DIR) and
        not os.path.isdir(os.path.join(CI_CONFIG_DIR, '.bzr'))):
         log('%s exists but appears not to be a bzr repo, removing.' %
@@ -66,6 +61,61 @@ def update_configs_from_repo(repo, revision=None):
         os.chdir(CI_CONFIG_DIR)
         log('Running bzr: %s' % cmds)
         [run_as_user(cmd=c, user=CI_USER, cwd=CI_CONFIG_DIR) for c in cmds]
+
+
+def _disable_git_host_checking():
+    ssh_dir = os.path.join('/home', CI_USER, '.ssh')
+    config_lines = []
+    for host in config('disable-strict-host-checking-hosts').split(','):
+        config_lines.append('Host {}'.format(host.strip()))
+        config_lines.append('  StrictHostKeyChecking no')
+    config_string = '\n'.join(config_lines + [''])
+
+    with open(os.path.join(ssh_dir, 'config'), 'a') as f:
+        f.write(config_string)
+
+
+def update_configs_from_git_repo(repo, revision=None):
+    if (os.path.isdir(CI_CONFIG_DIR) and
+            not os.path.isdir(os.path.join(CI_CONFIG_DIR, '.git'))):
+        log('%s exists but appears not to be a git repo, removing.' %
+            CI_CONFIG_DIR)
+        shutil.rmtree(CI_CONFIG_DIR)
+
+    _disable_git_host_checking()
+    if not os.path.exists(CI_CONFIG_DIR):
+        log('Cloning {}.'.format(repo))
+        cmd = ['git', 'clone', repo, CI_CONFIG_DIR]
+        run_as_user(cmd=cmd, user=CI_USER)
+    else:
+        log('Fetching all remotes in {}'.format(CI_CONFIG_DIR))
+        run_as_user(cmd=['git', 'fetch', '--all'], user=CI_USER,
+                    cwd=CI_CONFIG_DIR)
+
+    if not revision or revision == 'trunk':
+        revision = 'master'
+    try:
+        git_sha = run_as_user(cmd=['git', 'rev-parse', revision], user=CI_USER,
+                              cwd=CI_CONFIG_DIR).strip()
+    except subprocess.CalledProcessError:
+        git_sha = run_as_user(
+            cmd=['git', 'rev-parse', 'origin/{}'.format(revision)],
+            user=CI_USER, cwd=CI_CONFIG_DIR).strip()
+    log('Resetting {} to {}'.format(CI_CONFIG_DIR, git_sha))
+    run_as_user(cmd=['git', 'reset', '--hard', git_sha], user=CI_USER,
+                cwd=CI_CONFIG_DIR)
+
+
+def update_configs_from_repo(repo_rcs, repo, revision=None):
+    log('*** Updating %s from remote repo: %s' %
+        (CI_CONFIG_DIR, repo))
+    subprocess.check_call(['chown', '-R', CI_USER, CONFIG_DIR])
+
+    repo_funcs = {
+        'bzr': update_configs_from_bzr_repo,
+        'git': update_configs_from_git_repo,
+    }
+    return repo_funcs[repo_rcs](repo, revision)
 
 
 def load_control():
