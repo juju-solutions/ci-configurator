@@ -67,7 +67,7 @@ def install():
                  'and later.')
             raise Exception(m)
         apt_update(fatal=True)
-        apt_install(filter_installed_packages(['jenkins-job-builder']),
+        apt_install(['jenkins-job-builder', 'python-pbr'],
                     fatal=True)
     else:
         m = ('Must specify a git url as install source or bundled source with '
