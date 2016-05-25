@@ -33,10 +33,8 @@ def update_configs_from_charm(bundled_configs):
 
 
 def update_configs_from_bzr_repo(repo, revision=None):
-    if (os.path.isdir(CI_CONFIG_DIR) and
-       not os.path.isdir(os.path.join(CI_CONFIG_DIR, '.bzr'))):
-        log('%s exists but appears not to be a bzr repo, removing.' %
-            CI_CONFIG_DIR)
+    if os.path.isdir(CI_CONFIG_DIR):
+        log('%s exists , removing.' % CI_CONFIG_DIR)
         shutil.rmtree(CI_CONFIG_DIR)
 
     if not os.path.exists(CI_CONFIG_DIR):
@@ -46,21 +44,6 @@ def update_configs_from_bzr_repo(repo, revision=None):
             cmd += ['-r', revision]
         run_as_user(cmd=cmd, user=CI_USER)
         return
-
-    cmds = []
-    cmds.append(['bzr', 'revert'])
-    if revision == 'trunk':
-        log('Ensuring %s is up to date with trunk.' % CI_CONFIG_DIR)
-        cmds.append(['bzr', 'revert'])
-        cmds.append(['bzr', 'pull'])
-    elif revision:
-        log('Ensuring %s is on revision %s.' % (CI_CONFIG_DIR, revision))
-        cmds.append(['bzr', 'update', '-r', revision])
-
-    if cmds:
-        os.chdir(CI_CONFIG_DIR)
-        log('Running bzr: %s' % cmds)
-        [run_as_user(cmd=c, user=CI_USER, cwd=CI_CONFIG_DIR) for c in cmds]
 
 
 def _disable_git_host_checking():
