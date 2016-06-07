@@ -1,0 +1,6 @@
+destination: hooks/charmhelpers
+branch: lp:~canonical-ci/charm-helpers/trunk
+include:
+    - canonical_ci
+    - core
+    - fetch
