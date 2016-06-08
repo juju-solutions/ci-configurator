@@ -23,12 +23,12 @@ from charmhelpers.core.hookenv import (
     INFO,
     ERROR
 )
-from charmhelpers.canonical_ci.gerrit import (
+from canonical_ci.gerrit import (
     GerritClient,
     start_gerrit,
     stop_gerrit
 )
-from charmhelpers.canonical_ci import cron
+from canonical_ci import cron
 
 GERRIT_INIT_SCRIPT = '/etc/init.d/gerrit'
 GERRIT_CONFIG_DIR = os.path.join(common.CI_CONFIG_DIR, 'gerrit')

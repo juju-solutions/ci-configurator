@@ -1,2 +1,6 @@
 includes:
   - layer:basic
+options:
+  basic:
+    packages:
+      - python3-paramiko
