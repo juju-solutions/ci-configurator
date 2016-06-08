@@ -5,7 +5,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-import urlparse
+import urllib.parse
 import yaml
 
 from charmhelpers.fetch import (
@@ -91,7 +91,7 @@ def update_hooks(hooks_dest, settings):
         if os.path.isfile(current_path):
             with open(current_path, 'r') as f:
                 contents = f.read()
-            for key, value in settings.items():
+            for key, value in list(settings.items()):
                 pattern = '{{%s}}' % (key)
                 contents = contents.replace(pattern, value)
             with open(current_path, 'w') as f:
@@ -179,7 +179,7 @@ def update_permissions(admin_username, admin_email, admin_privkey):
         os.mkdir(LAUNCHPAD_DIR)
         cmd = ['chown', "%s:%s" % (GERRIT_USER, GERRIT_USER), LAUNCHPAD_DIR]
         subprocess.check_call(cmd)
-        os.chmod(LAUNCHPAD_DIR, 0774)
+        os.chmod(LAUNCHPAD_DIR, 0o774)
 
     # check if we have creds, push to dir
     if config('lp-credentials-file'):
@@ -208,7 +208,7 @@ def update_permissions(admin_username, admin_email, admin_privkey):
         groups_config = yaml.load(f)
 
     # Create group(s)
-    for group, _ in groups_config.items():
+    for group, _ in list(groups_config.items()):
         gerrit_client.create_group(group)
 
     # Update git repo with permissions
@@ -218,7 +218,7 @@ def update_permissions(admin_username, admin_email, admin_privkey):
         if tmppath:
             cmd = ["chown", "%s:%s" % (GERRIT_USER, GERRIT_USER), tmppath]
             subprocess.check_call(cmd)
-            os.chmod(tmppath, 0774)
+            os.chmod(tmppath, 0o774)
 
             config_ref = 'refs/meta/config:refs/remotes/origin/meta/config'
 
@@ -345,7 +345,7 @@ def get_gerrit_hostname(url):
     if not url:
         raise GerritConfigurationException("url is None")
 
-    host = urlparse.urlsplit(url).hostname
+    host = urllib.parse.urlsplit(url).hostname
     if host:
         return host
 
@@ -358,13 +358,13 @@ def create_projects(admin_username, admin_email, admin_privkey, base_url,
     """Globally create all projects and repositories, clone and push"""
     cmd = ["chown", "%s:%s" % (GERRIT_USER, GERRIT_USER), tmpdir]
     subprocess.check_call(cmd)
-    os.chmod(tmpdir, 0774)
+    os.chmod(tmpdir, 0o774)
 
     gerrit_client = GerritClient(host='localhost', user=admin_username,
                                  port=SSH_PORT, key_file=admin_privkey)
     try:
         for project in projects:
-            name, repo = project.itervalues()
+            name, repo = iter(project.values())
 
             if not gerrit_client.create_project(name):
                 log("failed to create project in gerrit - skipping setup "
@@ -473,7 +473,7 @@ def get_relation_settings(keys):
         log('Failed to get gerrit relation data (%s).' % (exc), level=WARNING)
         return
 
-    missing = [k for k, v in settings.iteritems() if not v]
+    missing = [k for k, v in settings.items() if not v]
     if missing:
         log("Missing value for '%s' in gerrit relation." %
             (','.join(missing)), level=WARNING)

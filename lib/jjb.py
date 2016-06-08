@@ -2,7 +2,7 @@ import json
 import os
 import shutil
 import subprocess
-import urllib2
+import urllib.request, urllib.error, urllib.parse
 import time
 import xml.etree.ElementTree as ET
 
@@ -124,8 +124,8 @@ def write_jjb_config():
                 'password': admin_cred,
             }
 
-            if (None not in jenkins.itervalues() and
-               '' not in jenkins.itervalues()):
+            if (None not in iter(jenkins.values()) and
+               '' not in iter(jenkins.values())):
                 with open(JJB_CONFIG, 'wb') as out:
                     out.write(JJB_CONFIG_TEMPLATE % jenkins)
                 log('*** Wrote jenkins-job-builder config: %s.' % JJB_CONFIG)
@@ -143,7 +143,7 @@ def jenkins_context():
 
 def config_context():
     ctxt = {}
-    for k, v in config().iteritems():
+    for k, v in config().items():
         if k == 'misc-config':
             _misc = v.split(' ')
             for ms in _misc:
@@ -236,7 +236,7 @@ def _update_jenkins_config():
     tree.write(JENKINS_CONFIG_FILE)
     cmd = ['chown', 'jenkins:nogroup', JENKINS_CONFIG_FILE]
     subprocess.check_call(cmd)
-    os.chmod(JENKINS_CONFIG_FILE, 0644)
+    os.chmod(JENKINS_CONFIG_FILE, 0o644)
 
     # restart only if needed
     restart_on_change({JENKINS_CONFIG_FILE: ['jenkins']})
@@ -277,7 +277,7 @@ def _update_jenkins_jobs():
             # Run as the CI_USER so the cache will be primed with the correct
             # permissions (rather than root:root).
             common.run_as_user(cmd=cmd, user=common.CI_USER)
-        except urllib2.HTTPError, err:
+        except urllib.error.HTTPError as err:
             if err.code == 503:
                 # sleep for a while, retry
                 time.sleep(SLEEP_TIME)

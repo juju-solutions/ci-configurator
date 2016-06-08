@@ -1,5 +1,3 @@
-#!/usr/bin/python
-
 import os
 import sys
 
@@ -13,6 +11,7 @@ from utils import (
     is_valid_config_repo,
 )
 
+from charms.reactive import hook
 from charmhelpers.fetch import apt_install, filter_installed_packages
 from charmhelpers.canonical_ci import cron
 from charmhelpers.core.hookenv import (
@@ -24,14 +23,12 @@ from charmhelpers.core.hookenv import (
     relation_ids,
     related_units,
     relation_set,
-    Hooks,
     UnregisteredHookError,
 )
 
-hooks = Hooks()
 
 
-@hooks.hook()
+@hook("install")
 def install():
     common.ensure_user()
     if not os.path.exists(common.CONFIG_DIR):
@@ -59,7 +56,7 @@ def run_relation_hooks():
             zuul_configurator_relation_changed(rid=rid)
 
 
-@hooks.hook()
+@hook("config-changed")
 def config_changed():
     # setup identity to reach private LP resources
     common.ensure_user()
@@ -91,12 +88,12 @@ def config_changed():
             jjb.JOBS_CONFIG_DIR)
 
 
-@hooks.hook()
+@hook("upgrade-charm")
 def upgrade_charm():
     config_changed()
 
 
-@hooks.hook()
+@hook("jenkins-configurator-relation-joined")
 def jenkins_configurator_relation_joined(rid=None):
     """Install jenkins job builder.
 
@@ -109,7 +106,7 @@ def jenkins_configurator_relation_joined(rid=None):
         relation_set(relation_id=rid, required_plugins=' '.join(plugins))
 
 
-@hooks.hook('jenkins-configurator-relation-changed')
+@hook("jenkins-configurator-relation-changed")
 def jenkins_configurator_relation_changed(rid=None):
     """Update/configure Jenkins installation.
 
@@ -128,7 +125,7 @@ def jenkins_configurator_relation_changed(rid=None):
         log('CI not yet configured - skipping jenkins update', level=INFO)
 
 
-@hooks.hook('gerrit-configurator-relation-changed')
+@hook("gerrit-configurator-relation-changed")
 def gerrit_configurator_relation_changed(rid=None):
     """Update/configure Gerrit installation."""
     if is_ci_configured():
@@ -137,21 +134,10 @@ def gerrit_configurator_relation_changed(rid=None):
         log('CI not yet configured - skipping gerrit update', level=INFO)
 
 
-@hooks.hook('zuul-configurator-relation-changed')
+@hook("zuul-configurator-relation-changed")
 def zuul_configurator_relation_changed(rid=None):
     """Update/configure Zuul installation."""
     if is_ci_configured():
         zuul.update_zuul()
     else:
         log('CI not yet configured - skipping zuul update', level=INFO)
-
-
-def main():
-    try:
-        hooks.execute(sys.argv)
-    except UnregisteredHookError as e:
-        log('Unknown hook {} - skipping.'.format(e))
-
-
-if __name__ == '__main__':
-    main()
